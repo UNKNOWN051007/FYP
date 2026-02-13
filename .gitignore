@@ -139,6 +139,7 @@ debug.log
 **/android/local.properties
 **/android/**/GeneratedPluginRegistrant.java
 pubspec.lock
+
 **/ios/**/*.mode1v3
 **/ios/**/*.mode2v3
 **/ios/**/*.moved-aside
