@@ -1,126 +1,210 @@
 """
-Simple script to start the API server with first-time setup
+Malaysian Employment Assistant - FastAPI Server
+
+Provides REST API endpoints for the Flutter mobile app to interact
+with the local LLM-based Malaysian employment law assistant.
 """
 
-import subprocess
-import sys
 import os
 import json
+import secrets
+import logging
+from datetime import datetime
+from typing import List, Optional
 
-def check_api_keys():
-    """Check if API keys exist, if not guide user"""
-    if not os.path.exists("api_keys.json"):
-        print("\n" + "=" * 60)
-        print("🔑 FIRST TIME SETUP - API KEY GENERATION")
-        print("=" * 60)
-        print("\nNo API keys found. Let's create one!\n")
-        
-        name = input("Enter a name for your API key (e.g., 'Flutter App'): ").strip()
-        if not name:
-            name = "Flutter App"
-        
-        description = input("Enter description (optional): ").strip()
-        
-        # Create a simple API key
-        import secrets
-        from datetime import datetime
-        
-        api_key = f"mea_{secrets.token_urlsafe(32)}"
-        
-        api_keys = {
-            api_key: {
-                "name": name,
-                "description": description,
-                "created_at": datetime.now().isoformat(),
-                "last_used": None,
-                "request_count": 0,
-                "active": True
-            }
-        }
-        
-        with open("api_keys.json", "w") as f:
-            json.dump(api_keys, f, indent=2)
-        
-        print("\n" + "=" * 60)
-        print("✅ API KEY GENERATED!")
-        print("=" * 60)
-        print(f"\nYour API Key: {api_key}")
-        print("\n⚠️  IMPORTANT:")
-        print("1. Save this key securely!")
-        print("2. Add it to your Flutter app:")
-        print(f"   apiKey: '{api_key}'")
-        print("3. This key is saved in api_keys.json")
-        print("\n" + "=" * 60 + "\n")
-        
-        input("Press Enter to continue...")
-        return api_key
-    else:
-        print("✅ API keys file found")
-        return None
+from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
+# Load environment variables if python-dotenv is available
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+# ============================================================================
+# LOGGING
+# ============================================================================
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# ============================================================================
+# APP INITIALIZATION
+# ============================================================================
+
+app = FastAPI(
+    title="Malaysian Employment Assistant API",
+    description="AI-powered Malaysian employment law assistant using a local LLM",
+    version="1.0.0",
+)
+
+# CORS — allow all origins so the Flutter app can connect from any IP
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ============================================================================
+# API KEY MANAGEMENT
+# ============================================================================
+
+API_KEYS_FILE = os.getenv("API_KEYS_FILE", "api_keys.json")
 
 
-def get_local_ip():
-    """Get local IP address"""
-    import socket
+def load_api_keys() -> dict:
+    """Load API keys from the JSON file."""
+    if not os.path.exists(API_KEYS_FILE):
+        return {}
+    with open(API_KEYS_FILE, "r") as f:
+        return json.load(f)
+
+
+def save_api_keys(keys: dict) -> None:
+    """Persist API keys to the JSON file."""
+    with open(API_KEYS_FILE, "w") as f:
+        json.dump(keys, f, indent=2)
+
+
+def validate_api_key(x_api_key: str = Header(...)) -> str:
+    """Dependency that validates the X-API-Key header."""
+    api_keys = load_api_keys()
+    if x_api_key not in api_keys:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    key_data = api_keys[x_api_key]
+    if not key_data.get("active", False):
+        raise HTTPException(status_code=401, detail="API key is inactive")
+    # Update usage statistics
+    api_keys[x_api_key]["last_used"] = datetime.now().isoformat()
+    api_keys[x_api_key]["request_count"] = key_data.get("request_count", 0) + 1
+    save_api_keys(api_keys)
+    return x_api_key
+
+
+def validate_admin_key(x_admin_key: str = Header(...)) -> str:
+    """Dependency that validates the X-Admin-Key header for admin endpoints.
+
+    The expected key is set via the ADMIN_API_KEY environment variable.
+    When no ADMIN_API_KEY is configured the endpoint is open (development mode).
+    """
+    admin_key = os.getenv("ADMIN_API_KEY", "")
+    if admin_key and x_admin_key != admin_key:
+        raise HTTPException(status_code=401, detail="Invalid admin key")
+    return x_admin_key
+
+
+# ============================================================================
+# LLM ASSISTANT — LAZY INITIALIZATION
+# ============================================================================
+
+_assistant = None
+
+
+def get_assistant():
+    """Return the singleton LLM assistant, initializing it on first call."""
+    global _assistant
+    if _assistant is None:
+        from local_llm_malaysian_assistant import LocalMalaysianAssistant
+        model_name = os.getenv("MODEL_NAME", "microsoft/Phi-3-mini-4k-instruct")
+        use_quantization = os.getenv("USE_QUANTIZATION", "true").lower() == "true"
+        logger.info("Initializing LLM assistant with model: %s", model_name)
+        _assistant = LocalMalaysianAssistant(
+            model_name=model_name,
+            use_quantization=use_quantization,
+        )
+        logger.info("LLM assistant ready")
+    return _assistant
+
+
+# ============================================================================
+# REQUEST / RESPONSE MODELS
+# ============================================================================
+
+class ChatRequest(BaseModel):
+    message: str
+    # conversation_history is accepted for forward-compatibility but the
+    # current LocalMalaysianAssistant.chat() interface takes a single message.
+    conversation_history: Optional[List[dict]] = []
+
+
+class ChatResponse(BaseModel):
+    response: str
+    timestamp: str
+
+
+class GenerateKeyRequest(BaseModel):
+    name: str
+    description: Optional[str] = ""
+
+
+class GenerateKeyResponse(BaseModel):
+    api_key: str
+    name: str
+    created_at: str
+
+
+# ============================================================================
+# ENDPOINTS
+# ============================================================================
+
+@app.get("/health")
+async def health_check():
+    """Health check — returns server status and whether the model is loaded."""
+    return {
+        "status": "healthy",
+        "model_loaded": _assistant is not None,
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+@app.post("/api/chat", response_model=ChatResponse)
+async def chat(
+    request: ChatRequest,
+    api_key: str = Depends(validate_api_key),
+):
+    """Send a message and receive a response from the employment assistant."""
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except:
-        return "localhost"
-
-
-def main():
-    print("🚀 Malaysian Employment Assistant - API Server Starter")
-    print("=" * 60)
-    
-    # Check if model needs to be downloaded
-    print("\n📦 Checking dependencies...")
-    print("   (First run will download ~7GB model)")
-    
-    # Check API keys
-    api_key = check_api_keys()
-    
-    # Get IP address
-    local_ip = get_local_ip()
-    
-    print("\n🌐 Starting server...")
-    print("=" * 60)
-    print("\n📡 Server will be available at:")
-    print(f"   - Local: http://localhost:8000")
-    print(f"   - Network: http://{local_ip}:8000")
-    print("\n📚 API Documentation at:")
-    print(f"   - Swagger UI: http://localhost:8000/docs")
-    print(f"   - ReDoc: http://localhost:8000/redoc")
-    print("\n💡 For Flutter app, use:")
-    print(f"   baseUrl: 'http://{local_ip}:8000'")
-    if api_key:
-        print(f"   apiKey: '{api_key}'")
-    print("\n⏹️  Press CTRL+C to stop server")
-    print("\n" + "=" * 60 + "\n")
-    
-    # Start server
-    try:
-        # Change to backend directory
-        backend_dir = os.path.dirname(os.path.abspath(__file__))
-        os.chdir(backend_dir)
-        
-        subprocess.run([
-            sys.executable, "-m", "uvicorn",
-            "llm_api_server:app",
-            "--host", "0.0.0.0",
-            "--port", "8000",
-            "--reload"
-        ])
-    except KeyboardInterrupt:
-        print("\n\n👋 Server stopped. Goodbye!")
+        assistant = get_assistant()
+        response = assistant.chat(request.message)
+        return ChatResponse(
+            response=response,
+            timestamp=datetime.now().isoformat(),
+        )
     except Exception as e:
-        print(f"\n❌ Error: {e}")
-        print("\n💡 Make sure you have installed all requirements:")
-        print("   pip install -r requirements.txt")
+        logger.error("Error processing chat request: %s", e)
+        raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
 
 
-if __name__ == "__main__":
-    main()
+@app.post("/admin/generate-key", response_model=GenerateKeyResponse)
+async def generate_key(
+    request: GenerateKeyRequest,
+    admin_key: str = Depends(validate_admin_key),
+):
+    """Generate a new API key.
+
+    Requires the X-Admin-Key header to match the ADMIN_API_KEY environment
+    variable (when set).  In development, if ADMIN_API_KEY is not configured,
+    the endpoint is open so that the initial key can be created easily.
+    """
+    api_key = f"mea_{secrets.token_urlsafe(32)}"
+    created_at = datetime.now().isoformat()
+    api_keys = load_api_keys()
+    api_keys[api_key] = {
+        "name": request.name,
+        "description": request.description,
+        "created_at": created_at,
+        "last_used": None,
+        "request_count": 0,
+        "active": True,
+    }
+    save_api_keys(api_keys)
+    logger.info("New API key generated for: %s", request.name)
+    return GenerateKeyResponse(
+        api_key=api_key,
+        name=request.name,
+        created_at=created_at,
+    )
