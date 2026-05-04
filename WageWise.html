@@ -1,0 +1,1445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WageWise – Mobile Prototype</title>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0f1117;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+  }
+  .stage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100vw;
+    height: 100vh;
+  }
+  /* Phone shell */
+  .phone {
+    width: 390px;
+    height: 844px;
+    background: #000;
+    border-radius: 55px;
+    box-shadow:
+      0 0 0 2px #3a3a3c,
+      0 0 0 6px #1c1c1e,
+      0 40px 80px rgba(0,0,0,0.8),
+      inset 0 0 0 1px rgba(255,255,255,0.07);
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .phone-screen {
+    width: 100%;
+    height: 100%;
+    border-radius: 55px;
+    overflow: hidden;
+    position: relative;
+  }
+  /* Dynamic island */
+  .dynamic-island {
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 126px;
+    height: 37px;
+    background: #000;
+    border-radius: 20px;
+    z-index: 100;
+  }
+  /* Status bar */
+  .status-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 59px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding: 0 28px 8px;
+    z-index: 99;
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+  }
+  .status-time { letter-spacing: -0.3px; }
+  .status-icons { display: flex; gap: 7px; align-items: center; }
+  /* Screen content */
+  .screen-content {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    overflow: hidden;
+  }
+  /* Home indicator */
+  .home-indicator {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 134px;
+    height: 5px;
+    background: rgba(255,255,255,0.3);
+    border-radius: 3px;
+    z-index: 100;
+  }
+  /* Scrollable inner */
+  .inner-scroll {
+    position: absolute;
+    top: 59px;
+    left: 0; right: 0;
+    bottom: 83px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  .inner-scroll::-webkit-scrollbar { display: none; }
+  /* Bottom nav */
+  .bottom-nav {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 83px;
+    display: flex;
+    align-items: flex-start;
+    padding-top: 10px;
+    z-index: 99;
+  }
+  .nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    cursor: pointer;
+    opacity: 0.45;
+    transition: opacity 0.2s;
+  }
+  .nav-item.active { opacity: 1; }
+  .nav-icon { font-size: 22px; line-height: 1; }
+  .nav-label { font-size: 10px; font-weight: 500; letter-spacing: 0.1px; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div id="root"></div>
+</div>
+
+<script type="text/babel">
+const { useState, useCallback } = React;
+
+/* ── COLOUR TOKENS ─────────────────────────────────────────────────────── */
+const C = {
+  bg:         '#0E1B2E',
+  card:       '#162035',
+  cardAlt:    '#1A2640',
+  border:     'rgba(255,255,255,0.08)',
+  accent:     '#3B82F6',    // trust blue
+  accentGlow: 'rgba(59,130,246,0.25)',
+  teal:       '#14B8A6',
+  green:      '#22C55E',
+  amber:      '#F59E0B',
+  red:        '#EF4444',
+  purple:     '#8B5CF6',
+  text:       '#F0F4FF',
+  muted:      '#8A9BBE',
+  dimmed:     '#4A5A7A',
+};
+
+/* ── TRANSLATIONS ───────────────────────────────────────────────────────── */
+const T = {
+  en: {
+    appName: 'WageWise',
+    tagline: 'Your Fair Wage Navigator',
+    getStarted: 'Get Started',
+    signIn: 'Sign In',
+    navHome: 'Home',
+    navSalary: 'Salary',
+    navChat: 'AI Chat',
+    navCOL: 'Living',
+    navProfile: 'Profile',
+    homeGreeting: 'Good morning,',
+    homeUser: 'Xu Sheng 👋',
+    homeSubtitle: 'Ready to navigate your fair wage?',
+    quickActions: 'Quick Actions',
+    salaryCheck: 'Salary Check',
+    salaryCheckSub: 'Know your market value',
+    negotiate: 'Negotiate',
+    negotiateSub: 'Practice with AI coach',
+    rights: 'My Rights',
+    rightsSub: 'Employment Act guide',
+    livingCost: 'Living Cost',
+    livingCostSub: 'Compare cities',
+    marketInsight: 'Market Insight',
+    avgSalary: 'Avg. Fresh Grad Salary',
+    yourTarget: 'Your Target',
+    negotiationTip: 'Tip of the Day',
+    tipText: 'Always negotiate. 85% of employers expect it.',
+    salaryTitle: 'Salary Intelligence',
+    jobTitle: 'Job Title',
+    industry: 'Industry',
+    experience: 'Years of Experience',
+    education: 'Education Level',
+    location: 'Location',
+    predict: 'Predict My Salary',
+    salaryResult: 'Your Salary Range',
+    min: 'Min', median: 'Median', max: 'Max',
+    offerEval: 'Offer Evaluation',
+    yourOffer: 'Your Offer',
+    belowMarket: 'Below Market',
+    atMarket: 'At Market',
+    aboveMarket: 'Above Market',
+    chatTitle: 'AI Labour Rights Chatbot',
+    chatSubtitle: 'Ask anything about Malaysian employment law',
+    negotiationCoach: 'Negotiation Coach',
+    labourRights: 'Labour Rights',
+    contractReview: 'Contract Review',
+    suggestedTopics: 'Suggested Topics',
+    topic1: 'What is my EPF entitlement?',
+    topic2: 'Is my notice period legal?',
+    topic3: 'Overtime pay rights',
+    topic4: 'Maternity leave policy',
+    typeMessage: 'Ask a question...',
+    send: 'Send',
+    colTitle: 'Cost-of-Living Evaluator',
+    grossSalary: 'Gross Monthly Salary',
+    selectCity: 'Select City',
+    compare: 'Compare Cities',
+    afterDeductions: 'After Deductions',
+    epf: 'EPF (11%)',
+    socso: 'SOCSO',
+    tax: 'Income Tax',
+    netPay: 'Net Take-Home',
+    expenses: 'Monthly Expenses',
+    rent: 'Rent', food: 'Food', transport: 'Transport',
+    utilities: 'Utilities', healthcare: 'Healthcare',
+    disposable: 'Monthly Disposable',
+    profileTitle: 'My Profile',
+    degree: 'Bachelor of Software Eng.',
+    university: 'TAR UMT, Kuala Lumpur',
+    salaryGoal: 'Salary Goal',
+    negotiationScore: 'Negotiation Score',
+    profileSections: ['Saved Reports', 'Language', 'Notifications', 'Privacy', 'About WageWise'],
+    onb1Title: 'Know Your Worth',
+    onb1Sub: "Get AI-powered salary predictions specific to Malaysia's job market.",
+    onb2Title: 'Negotiate with Confidence',
+    onb2Sub: 'Practice salary negotiations with our AI coach tailored to Malaysian workplace culture.',
+    onb3Title: 'Understand Your Rights',
+    onb3Sub: 'Access plain-language guidance on the Employment Act 1955 and labour laws.',
+    scenario1: 'The Lowball Offer',
+    scenario2: 'Asking for a Raise',
+    practiceNow: 'Practice Now',
+    coachIntro: 'Hi! I\'m your WageWise negotiation coach. Choose a scenario to practice:',
+  },
+  bm: {
+    appName: 'WageWise',
+    tagline: 'Panduan Upah Adil Anda',
+    getStarted: 'Mulakan',
+    signIn: 'Log Masuk',
+    navHome: 'Utama',
+    navSalary: 'Gaji',
+    navChat: 'AI Chat',
+    navCOL: 'Kos Hidup',
+    navProfile: 'Profil',
+    homeGreeting: 'Selamat pagi,',
+    homeUser: 'Xu Sheng 👋',
+    homeSubtitle: 'Sedia untuk menentukan upah adil anda?',
+    quickActions: 'Tindakan Pantas',
+    salaryCheck: 'Semak Gaji',
+    salaryCheckSub: 'Tahu nilai pasaran anda',
+    negotiate: 'Rundingan',
+    negotiateSub: 'Latihan dengan jurulatih AI',
+    rights: 'Hak Saya',
+    rightsSub: 'Panduan Akta Pekerjaan',
+    livingCost: 'Kos Sara Hidup',
+    livingCostSub: 'Bandingkan bandar',
+    marketInsight: 'Pandangan Pasaran',
+    avgSalary: 'Gaji Purata Graduan Baharu',
+    yourTarget: 'Sasaran Anda',
+    negotiationTip: 'Tip Hari Ini',
+    tipText: 'Sentiasa berunding. 85% majikan menjangkakan ia.',
+    salaryTitle: 'Perisikan Gaji',
+    jobTitle: 'Jawatan Kerja',
+    industry: 'Industri',
+    experience: 'Tahun Pengalaman',
+    education: 'Tahap Pendidikan',
+    location: 'Lokasi',
+    predict: 'Ramal Gaji Saya',
+    salaryResult: 'Julat Gaji Anda',
+    min: 'Min', median: 'Median', max: 'Maks',
+    offerEval: 'Penilaian Tawaran',
+    yourOffer: 'Tawaran Anda',
+    belowMarket: 'Di Bawah Pasaran',
+    atMarket: 'Mengikut Pasaran',
+    aboveMarket: 'Melebihi Pasaran',
+    chatTitle: 'Chatbot Hak Buruh AI',
+    chatSubtitle: 'Tanya tentang undang-undang pekerjaan Malaysia',
+    negotiationCoach: 'Jurulatih Rundingan',
+    labourRights: 'Hak Buruh',
+    contractReview: 'Semak Kontrak',
+    suggestedTopics: 'Topik Cadangan',
+    topic1: 'Apakah hak KWSP saya?',
+    topic2: 'Adakah tempoh notis saya sah?',
+    topic3: 'Hak bayaran lebih masa',
+    topic4: 'Polisi cuti bersalin',
+    typeMessage: 'Tanya soalan...',
+    send: 'Hantar',
+    colTitle: 'Penilai Kos Sara Hidup',
+    grossSalary: 'Gaji Kasar Bulanan',
+    selectCity: 'Pilih Bandar',
+    compare: 'Bandingkan Bandar',
+    afterDeductions: 'Selepas Potongan',
+    epf: 'KWSP (11%)',
+    socso: 'PERKESO',
+    tax: 'Cukai Pendapatan',
+    netPay: 'Gaji Bersih',
+    expenses: 'Perbelanjaan Bulanan',
+    rent: 'Sewa', food: 'Makanan', transport: 'Pengangkutan',
+    utilities: 'Utiliti', healthcare: 'Penjagaan Kesihatan',
+    disposable: 'Baki Bulanan',
+    profileTitle: 'Profil Saya',
+    degree: 'Ijazah Sarjana Muda Kej. Perisian',
+    university: 'TAR UMT, Kuala Lumpur',
+    salaryGoal: 'Sasaran Gaji',
+    negotiationScore: 'Skor Rundingan',
+    profileSections: ['Laporan Tersimpan', 'Bahasa', 'Pemberitahuan', 'Privasi', 'Tentang WageWise'],
+    onb1Title: 'Tahu Nilai Anda',
+    onb1Sub: 'Dapatkan ramalan gaji AI khusus untuk pasaran kerja Malaysia.',
+    onb2Title: 'Runding dengan Yakin',
+    onb2Sub: 'Latih rundingan gaji dengan jurulatih AI kami.',
+    onb3Title: 'Fahami Hak Anda',
+    onb3Sub: 'Panduan Akta Pekerjaan 1955 dalam bahasa mudah.',
+    scenario1: 'Tawaran Terlalu Rendah',
+    scenario2: 'Minta Kenaikan Gaji',
+    practiceNow: 'Latih Sekarang',
+    coachIntro: 'Hai! Saya jurulatih rundingan WageWise anda. Pilih senario untuk berlatih:',
+  },
+  zh: {
+    appName: 'WageWise',
+    tagline: '您的公平薪资导航器',
+    getStarted: '开始使用',
+    signIn: '登录',
+    navHome: '主页',
+    navSalary: '薪资',
+    navChat: 'AI聊天',
+    navCOL: '生活',
+    navProfile: '个人',
+    homeGreeting: '早上好，',
+    homeUser: '徐盛 👋',
+    homeSubtitle: '准备好了解您的公平薪资了吗？',
+    quickActions: '快速操作',
+    salaryCheck: '薪资检查',
+    salaryCheckSub: '了解市场价值',
+    negotiate: '薪资谈判',
+    negotiateSub: '与AI教练练习',
+    rights: '我的权益',
+    rightsSub: '劳工法指南',
+    livingCost: '生活费',
+    livingCostSub: '比较城市',
+    marketInsight: '市场洞察',
+    avgSalary: '应届毕业生平均薪资',
+    yourTarget: '您的目标',
+    negotiationTip: '今日提示',
+    tipText: '总是要谈判。85%的雇主期待它。',
+    salaryTitle: '薪资智能平台',
+    jobTitle: '职位名称',
+    industry: '行业',
+    experience: '工作年限',
+    education: '学历',
+    location: '地点',
+    predict: '预测我的薪资',
+    salaryResult: '您的薪资范围',
+    min: '最低', median: '中位数', max: '最高',
+    offerEval: '报价评估',
+    yourOffer: '您的报价',
+    belowMarket: '低于市场',
+    atMarket: '符合市场',
+    aboveMarket: '高于市场',
+    chatTitle: 'AI劳工权益聊天机器人',
+    chatSubtitle: '询问任何关于马来西亚劳工法的问题',
+    negotiationCoach: '谈判教练',
+    labourRights: '劳工权益',
+    contractReview: '合同审查',
+    suggestedTopics: '建议话题',
+    topic1: '我的EPF权益是什么？',
+    topic2: '我的通知期合法吗？',
+    topic3: '加班费权益',
+    topic4: '产假政策',
+    typeMessage: '提问...',
+    send: '发送',
+    colTitle: '生活费评估器',
+    grossSalary: '月总薪资',
+    selectCity: '选择城市',
+    compare: '比较城市',
+    afterDeductions: '扣除后',
+    epf: 'EPF (11%)',
+    socso: 'SOCSO',
+    tax: '所得税',
+    netPay: '实得薪资',
+    expenses: '月度支出',
+    rent: '租金', food: '食物', transport: '交通',
+    utilities: '水电', healthcare: '医疗',
+    disposable: '月可支配',
+    profileTitle: '我的档案',
+    degree: '软件工程学士',
+    university: 'TAR UMT，吉隆坡',
+    salaryGoal: '薪资目标',
+    negotiationScore: '谈判分数',
+    profileSections: ['已保存报告', '语言', '通知', '隐私', '关于WageWise'],
+    onb1Title: '了解您的价值',
+    onb1Sub: '获取专为马来西亚就业市场定制的AI薪资预测。',
+    onb2Title: '自信地谈判',
+    onb2Sub: '与我们的AI教练练习薪资谈判。',
+    onb3Title: '了解您的权益',
+    onb3Sub: '以通俗语言获取就业法1955指南。',
+    scenario1: '低价报价',
+    scenario2: '要求加薪',
+    practiceNow: '立即练习',
+    coachIntro: '你好！我是您的WageWise谈判教练。选择一个场景来练习：',
+  },
+  ta: {
+    appName: 'WageWise',
+    tagline: 'உங்கள் நியாய ஊதிய வழிகாட்டி',
+    getStarted: 'தொடங்கு',
+    signIn: 'உள்நுழைய',
+    navHome: 'முகப்பு',
+    navSalary: 'சம்பளம்',
+    navChat: 'AI அரட்டை',
+    navCOL: 'வாழ்க்கை',
+    navProfile: 'சுயவிவரம்',
+    homeGreeting: 'காலை வணக்கம்,',
+    homeUser: 'சூ ஷெங் 👋',
+    homeSubtitle: 'உங்கள் நியாய ஊதியத்தை அறிய தயாரா?',
+    quickActions: 'விரைவு செயல்கள்',
+    salaryCheck: 'சம்பள சரிபார்ப்பு',
+    salaryCheckSub: 'சந்தை மதிப்பை அறியுங்கள்',
+    negotiate: 'பேச்சுவார்த்தை',
+    negotiateSub: 'AI பயிற்சியாளருடன் பயிற்சி',
+    rights: 'என் உரிமைகள்',
+    rightsSub: 'வேலைவாய்ப்பு சட்ட வழிகாட்டி',
+    livingCost: 'வாழ்க்கை செலவு',
+    livingCostSub: 'நகரங்களை ஒப்பிடு',
+    marketInsight: 'சந்தை நுண்ணறிவு',
+    avgSalary: 'சராசரி புதிய பட்டதாரி சம்பளம்',
+    yourTarget: 'உங்கள் இலக்கு',
+    negotiationTip: 'இன்றைய குறிப்பு',
+    tipText: 'எப்போதும் பேச்சுவார்த்தை நடத்துங்கள். 85% முதலாளிகள் இதை எதிர்பார்க்கிறார்கள்.',
+    salaryTitle: 'சம்பள நுண்ணறிவு',
+    jobTitle: 'வேலை தலைப்பு',
+    industry: 'தொழில்',
+    experience: 'அனுபவ ஆண்டுகள்',
+    education: 'கல்வி நிலை',
+    location: 'இடம்',
+    predict: 'என் சம்பளத்தை கணிக்கவும்',
+    salaryResult: 'உங்கள் சம்பள வரம்பு',
+    min: 'குறைந்தபட்சம்', median: 'நடுத்தர', max: 'அதிகபட்சம்',
+    offerEval: 'சலுகை மதிப்பீடு',
+    yourOffer: 'உங்கள் சலுகை',
+    belowMarket: 'சந்தைக்கு கீழே',
+    atMarket: 'சந்தை விலையில்',
+    aboveMarket: 'சந்தைக்கு மேலே',
+    chatTitle: 'AI தொழிலாளர் உரிமை தூது',
+    chatSubtitle: 'மலேசிய தொழிலாளர் சட்டம் பற்றி கேளுங்கள்',
+    negotiationCoach: 'பேச்சுவார்த்தை பயிற்சியாளர்',
+    labourRights: 'தொழிலாளர் உரிமைகள்',
+    contractReview: 'ஒப்பந்த மதிப்பாய்வு',
+    suggestedTopics: 'பரிந்துரைக்கப்பட்ட தலைப்புகள்',
+    topic1: 'என் EPF உரிமை என்ன?',
+    topic2: 'என் அறிவிப்பு காலம் சட்டப்பூர்வமா?',
+    topic3: 'மிகை நேர ஊதிய உரிமைகள்',
+    topic4: 'மகப்பேறு விடுப்பு கொள்கை',
+    typeMessage: 'ஒரு கேள்வி கேளுங்கள்...',
+    send: 'அனுப்பு',
+    colTitle: 'வாழ்க்கை செலவு மதிப்பீட்டாளர்',
+    grossSalary: 'மொத்த மாத சம்பளம்',
+    selectCity: 'நகரத்தை தேர்ந்தெடுக்கவும்',
+    compare: 'நகரங்களை ஒப்பிடவும்',
+    afterDeductions: 'கழித்தல்களுக்கு பிறகு',
+    epf: 'EPF (11%)',
+    socso: 'SOCSO',
+    tax: 'வருமான வரி',
+    netPay: 'நிகர சம்பளம்',
+    expenses: 'மாத செலவுகள்',
+    rent: 'வாடகை', food: 'உணவு', transport: 'போக்குவரத்து',
+    utilities: 'பயன்பாடுகள்', healthcare: 'சுகாதாரம்',
+    disposable: 'மாத சேமிப்பு',
+    profileTitle: 'என் சுயவிவரம்',
+    degree: 'மென்பொருள் பொறியியல் இளங்கலை',
+    university: 'TAR UMT, குவாலாலம்பூர்',
+    salaryGoal: 'சம்பள இலக்கு',
+    negotiationScore: 'பேச்சுவார்த்தை மதிப்பெண்',
+    profileSections: ['சேமித்த அறிக்கைகள்', 'மொழி', 'அறிவிப்புகள்', 'தனியுரிமை', 'WageWise பற்றி'],
+    onb1Title: 'உங்கள் மதிப்பை அறியுங்கள்',
+    onb1Sub: 'மலேசிய வேலை சந்தைக்கான AI சம்பள கணிப்புகளை பெறுங்கள்.',
+    onb2Title: 'நம்பிக்கையுடன் பேச்சுவார்த்தை நடத்துங்கள்',
+    onb2Sub: 'எங்கள் AI பயிற்சியாளருடன் சம்பள பேச்சுவார்த்தை பயிற்சி செய்யுங்கள்.',
+    onb3Title: 'உங்கள் உரிமைகளை புரிந்துகொள்ளுங்கள்',
+    onb3Sub: 'வேலைவாய்ப்பு சட்டம் 1955 வழிகாட்டி.',
+    scenario1: 'குறைந்த சலுகை',
+    scenario2: 'சம்பள உயர்வு கேட்பது',
+    practiceNow: 'இப்போது பயிற்சி',
+    coachIntro: 'வணக்கம்! நான் உங்கள் WageWise பேச்சுவார்த்தை பயிற்சியாளர். பயிற்சிக்கான காட்சியை தேர்ந்தெடுங்கள்:',
+  },
+};
+
+/* ── SVG ICONS ──────────────────────────────────────────────────────────── */
+const Icon = ({ name, size=22, color='currentColor' }) => {
+  const icons = {
+    home: <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><path d="M3 12L12 3l9 9" stroke={color} strokeWidth="2" strokeLinecap="round"/><path d="M5 10v9a1 1 0 001 1h4v-4h4v4h4a1 1 0 001-1v-9" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+    salary: <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke={color} strokeWidth="2"/><path d="M12 7v1m0 8v1m-3-5h4.5a1.5 1.5 0 010 3H9m3-3H8.5a1.5 1.5 0 010-3H12" stroke={color} strokeWidth="2" strokeLinecap="round"/></svg>,
+    chat: <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+    col: <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+    profile: <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><circle cx="12" cy="7" r="4" stroke={color} strokeWidth="2"/></svg>,
+    arrow: <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><path d="M5 12h14M12 5l7 7-7 7" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+    back: <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><path d="M19 12H5M12 5l-7 7 7 7" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+    star: <svg width={size} height={size} viewBox="0 0 24 24" fill={color}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
+    check: <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+    send: <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><line x1="22" y1="2" x2="11" y2="13" stroke={color} strokeWidth="2" strokeLinecap="round"/><polygon points="22 2 15 22 11 13 2 9 22 2" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+    info: <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke={color} strokeWidth="2"/><line x1="12" y1="8" x2="12" y2="12" stroke={color} strokeWidth="2" strokeLinecap="round"/><line x1="12" y1="16" x2="12.01" y2="16" stroke={color} strokeWidth="2" strokeLinecap="round"/></svg>,
+    lightning: <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+    shield: <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+    map: <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><line x1="8" y1="2" x2="8" y2="18" stroke={color} strokeWidth="2"/><line x1="16" y1="6" x2="16" y2="22" stroke={color} strokeWidth="2"/></svg>,
+    chartBar: <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><line x1="18" y1="20" x2="18" y2="10" stroke={color} strokeWidth="2.5" strokeLinecap="round"/><line x1="12" y1="20" x2="12" y2="4" stroke={color} strokeWidth="2.5" strokeLinecap="round"/><line x1="6" y1="20" x2="6" y2="14" stroke={color} strokeWidth="2.5" strokeLinecap="round"/><line x1="2" y1="20" x2="22" y2="20" stroke={color} strokeWidth="2" strokeLinecap="round"/></svg>,
+    robot: <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><rect x="3" y="11" width="18" height="11" rx="2" stroke={color} strokeWidth="2"/><path d="M12 2v4M9 2h6" stroke={color} strokeWidth="2" strokeLinecap="round"/><circle cx="9" cy="16" r="1.5" fill={color}/><circle cx="15" cy="16" r="1.5" fill={color}/><path d="M9 20h6" stroke={color} strokeWidth="2" strokeLinecap="round"/><line x1="7" y1="11" x2="7" y2="7" stroke={color} strokeWidth="2" strokeLinecap="round"/><line x1="17" y1="11" x2="17" y2="7" stroke={color} strokeWidth="2" strokeLinecap="round"/></svg>,
+    doc: <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><polyline points="14 2 14 8 20 8" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><line x1="16" y1="13" x2="8" y2="13" stroke={color} strokeWidth="2" strokeLinecap="round"/><line x1="16" y1="17" x2="8" y2="17" stroke={color} strokeWidth="2" strokeLinecap="round"/></svg>,
+    chevRight: <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><polyline points="9 18 15 12 9 6" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+    settings: <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke={color} strokeWidth="2"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" stroke={color} strokeWidth="2"/></svg>,
+  };
+  return icons[name] || null;
+};
+
+/* ── REUSABLE COMPONENTS ────────────────────────────────────────────────── */
+const Card = ({ children, style={}, onClick }) => (
+  <div onClick={onClick} style={{
+    background: C.card,
+    border: `1px solid ${C.border}`,
+    borderRadius: 20,
+    padding: '16px 18px',
+    ...style,
+    cursor: onClick ? 'pointer' : 'default',
+  }}>{children}</div>
+);
+
+const GradientBtn = ({ children, onClick, style={}, gradient }) => (
+  <button onClick={onClick} style={{
+    width: '100%',
+    padding: '16px',
+    border: 'none',
+    borderRadius: 16,
+    background: gradient || `linear-gradient(135deg, ${C.accent} 0%, #6366F1 100%)`,
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 700,
+    cursor: 'pointer',
+    letterSpacing: 0.2,
+    boxShadow: `0 4px 20px ${C.accentGlow}`,
+    ...style,
+  }}>{children}</button>
+);
+
+const Tag = ({ label, color=C.accent }) => (
+  <span style={{
+    display: 'inline-block',
+    padding: '3px 10px',
+    borderRadius: 99,
+    background: color + '22',
+    color,
+    fontSize: 11,
+    fontWeight: 600,
+    letterSpacing: 0.3,
+  }}>{label}</span>
+);
+
+/* ── SCREEN: ONBOARDING ─────────────────────────────────────────────────── */
+const OnboardingScreen = ({ t, onDone }) => {
+  const [slide, setSlide] = useState(0);
+  const slides = [
+    { icon: '📊', title: t.onb1Title, sub: t.onb1Sub, color: C.accent },
+    { icon: '🤝', title: t.onb2Title, sub: t.onb2Sub, color: C.teal },
+    { icon: '⚖️', title: t.onb3Title, sub: t.onb3Sub, color: C.purple },
+  ];
+  const s = slides[slide];
+  return (
+    <div style={{ height:'100%', background: C.bg, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'space-between', padding:'80px 32px 48px' }}>
+      {/* Logo */}
+      <div style={{ textAlign:'center' }}>
+        <div style={{ fontSize:56, marginBottom:8 }}>{s.icon}</div>
+        <div style={{ width:64, height:64, borderRadius:18, background:`linear-gradient(135deg,${C.accent},${C.teal})`, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 24px', boxShadow:`0 8px 32px ${C.accentGlow}` }}>
+          <span style={{ color:'#fff', fontWeight:800, fontSize:22 }}>W</span>
+        </div>
+        <div style={{ color:C.text, fontWeight:800, fontSize:28, letterSpacing:-0.5 }}>{t.appName}</div>
+        <div style={{ color:C.muted, fontSize:14, marginTop:4 }}>{t.tagline}</div>
+      </div>
+
+      {/* Slide content */}
+      <div style={{ textAlign:'center', maxWidth:280 }}>
+        <div style={{ width:72, height:72, borderRadius:24, background: s.color+'22', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px', border:`1px solid ${s.color}44` }}>
+          <span style={{ fontSize:32 }}>{s.icon}</span>
+        </div>
+        <div style={{ color:C.text, fontWeight:700, fontSize:22, marginBottom:12, lineHeight:1.2 }}>{s.title}</div>
+        <div style={{ color:C.muted, fontSize:15, lineHeight:1.6 }}>{s.sub}</div>
+      </div>
+
+      {/* Dots + CTA */}
+      <div style={{ width:'100%' }}>
+        <div style={{ display:'flex', justifyContent:'center', gap:8, marginBottom:28 }}>
+          {slides.map((_,i) => (
+            <div key={i} onClick={() => setSlide(i)} style={{ width: i===slide ? 24 : 8, height:8, borderRadius:4, background: i===slide ? C.accent : C.dimmed, transition:'all 0.3s', cursor:'pointer' }} />
+          ))}
+        </div>
+        {slide < 2 ? (
+          <GradientBtn onClick={() => setSlide(s => s+1)}>
+            Continue <span style={{ marginLeft:4 }}>→</span>
+          </GradientBtn>
+        ) : (
+          <GradientBtn onClick={onDone}>{t.getStarted}</GradientBtn>
+        )}
+        {slide < 2 && (
+          <button onClick={onDone} style={{ display:'block', margin:'16px auto 0', background:'none', border:'none', color:C.muted, fontSize:14, cursor:'pointer' }}>
+            {t.signIn}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/* ── SCREEN: HOME ───────────────────────────────────────────────────────── */
+const HomeScreen = ({ t, navigate }) => {
+  const actions = [
+    { key:'salary', icon:'chartBar', label: t.salaryCheck, sub: t.salaryCheckSub, color: C.accent, screen:'salary' },
+    { key:'negotiate', icon:'lightning', label: t.negotiate, sub: t.negotiateSub, color: C.teal, screen:'chat' },
+    { key:'rights', icon:'shield', label: t.rights, sub: t.rightsSub, color: C.purple, screen:'chat' },
+    { key:'col', icon:'map', label: t.livingCost, sub: t.livingCostSub, color: C.amber, screen:'col' },
+  ];
+  return (
+    <div style={{ background: C.bg, minHeight:'100%', paddingBottom:16 }}>
+      {/* Hero header */}
+      <div style={{ padding:'20px 22px 0', background: `linear-gradient(180deg, #0A1628 0%, ${C.bg} 100%)` }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
+          <div>
+            <div style={{ color:C.muted, fontSize:13 }}>{t.homeGreeting}</div>
+            <div style={{ color:C.text, fontWeight:700, fontSize:20 }}>{t.homeUser}</div>
+            <div style={{ color:C.muted, fontSize:12, marginTop:2 }}>{t.homeSubtitle}</div>
+          </div>
+          <div style={{ width:44, height:44, borderRadius:22, background:`linear-gradient(135deg,${C.accent},${C.teal})`, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:`0 4px 16px ${C.accentGlow}` }}>
+            <span style={{ color:'#fff', fontWeight:800, fontSize:16 }}>XS</span>
+          </div>
+        </div>
+
+        {/* Market insight card */}
+        <Card style={{ background:`linear-gradient(135deg, #1a3a6e 0%, #0e2450 100%)`, border:`1px solid ${C.accent}33`, marginBottom:20 }}>
+          <div style={{ color:C.muted, fontSize:12, marginBottom:8 }}>{t.marketInsight}</div>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end' }}>
+            <div>
+              <div style={{ color:C.muted, fontSize:11, marginBottom:2 }}>{t.avgSalary}</div>
+              <div style={{ color:C.text, fontWeight:800, fontSize:26 }}>RM 3,800</div>
+              <Tag label="IT / Software" color={C.accent} />
+            </div>
+            <div style={{ textAlign:'right' }}>
+              <div style={{ color:C.muted, fontSize:11, marginBottom:2 }}>{t.yourTarget}</div>
+              <div style={{ color:C.green, fontWeight:800, fontSize:22 }}>RM 4,500</div>
+              <Tag label="+18.4%" color={C.green} />
+            </div>
+          </div>
+          {/* bar */}
+          <div style={{ marginTop:14, background:'rgba(255,255,255,0.08)', borderRadius:4, height:6, overflow:'hidden' }}>
+            <div style={{ width:'78%', height:'100%', background:`linear-gradient(90deg,${C.accent},${C.teal})`, borderRadius:4 }} />
+          </div>
+          <div style={{ display:'flex', justifyContent:'space-between', marginTop:4 }}>
+            <span style={{ color:C.dimmed, fontSize:10 }}>RM 2,500</span>
+            <span style={{ color:C.dimmed, fontSize:10 }}>RM 6,000+</span>
+          </div>
+        </Card>
+      </div>
+
+      {/* Quick actions */}
+      <div style={{ padding:'0 22px' }}>
+        <div style={{ color:C.text, fontWeight:700, fontSize:16, marginBottom:14 }}>{t.quickActions}</div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+          {actions.map(a => (
+            <Card key={a.key} onClick={() => navigate(a.screen)} style={{ padding:'16px 14px', cursor:'pointer', background: C.cardAlt, transition:'all 0.2s' }}>
+              <div style={{ width:40, height:40, borderRadius:14, background: a.color+'22', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:10, border:`1px solid ${a.color}33` }}>
+                <Icon name={a.icon} size={20} color={a.color} />
+              </div>
+              <div style={{ color:C.text, fontWeight:600, fontSize:14, marginBottom:3 }}>{a.label}</div>
+              <div style={{ color:C.muted, fontSize:11, lineHeight:1.4 }}>{a.sub}</div>
+            </Card>
+          ))}
+        </div>
+
+        {/* Tip */}
+        <Card style={{ marginTop:14, background:`linear-gradient(135deg,#1a2a1a,#0e1e0e)`, border:`1px solid ${C.green}33`, display:'flex', gap:12, alignItems:'flex-start' }}>
+          <div style={{ width:36, height:36, borderRadius:12, background: C.green+'22', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+            <Icon name="info" size={18} color={C.green} />
+          </div>
+          <div>
+            <div style={{ color:C.green, fontWeight:600, fontSize:12, marginBottom:3 }}>{t.negotiationTip}</div>
+            <div style={{ color:C.text, fontSize:13, lineHeight:1.5 }}>{t.tipText}</div>
+          </div>
+        </Card>
+
+        {/* Recent activity */}
+        <div style={{ color:C.text, fontWeight:700, fontSize:16, margin:'20px 0 12px' }}>Recent</div>
+        {[
+          { icon:'chartBar', label:'Software Engineer – KL', sub:'Predicted: RM 3,800–5,500', color:C.accent, tag:'Salary', tagColor:C.accent },
+          { icon:'lightning', label:'Lowball Offer Practice', sub:'Score: 78% · 12 min ago', color:C.teal, tag:'Coach', tagColor:C.teal },
+        ].map((r,i) => (
+          <Card key={i} style={{ marginBottom:10, display:'flex', gap:14, alignItems:'center' }}>
+            <div style={{ width:40, height:40, borderRadius:14, background: r.color+'22', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              <Icon name={r.icon} size={19} color={r.color} />
+            </div>
+            <div style={{ flex:1 }}>
+              <div style={{ color:C.text, fontWeight:600, fontSize:14 }}>{r.label}</div>
+              <div style={{ color:C.muted, fontSize:12, marginTop:2 }}>{r.sub}</div>
+            </div>
+            <Tag label={r.tag} color={r.tagColor} />
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/* ── SCREEN: SALARY INTELLIGENCE ────────────────────────────────────────── */
+const SalaryScreen = ({ t }) => {
+  const [predicted, setPredicted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [jobTitle, setJobTitle] = useState('Software Engineer');
+  const [industry, setIndustry] = useState('Information Technology');
+  const [exp, setExp] = useState('0');
+  const [edu, setEdu] = useState("Bachelor's Degree");
+  const [loc, setLoc] = useState('Kuala Lumpur');
+  const [offerVal, setOfferVal] = useState('3200');
+
+  const handlePredict = () => {
+    setLoading(true);
+    setTimeout(() => { setLoading(false); setPredicted(true); }, 1200);
+  };
+
+  const offer = parseInt(offerVal) || 3200;
+  const offerStatus = offer < 3500 ? 'below' : offer > 4800 ? 'above' : 'at';
+  const offerColor = offerStatus === 'below' ? C.red : offerStatus === 'above' ? C.green : C.amber;
+  const offerLabel = offerStatus === 'below' ? t.belowMarket : offerStatus === 'above' ? t.aboveMarket : t.atMarket;
+
+  const inputStyle = {
+    width:'100%', background: C.cardAlt, border:`1px solid ${C.border}`,
+    borderRadius:12, padding:'12px 14px', color:C.text, fontSize:14,
+    outline:'none', appearance:'none',
+  };
+  const labelStyle = { color:C.muted, fontSize:12, fontWeight:500, marginBottom:6, display:'block' };
+
+  return (
+    <div style={{ background: C.bg, minHeight:'100%', paddingBottom:16 }}>
+      <div style={{ padding:'20px 22px 0' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:20 }}>
+          <div style={{ width:40, height:40, borderRadius:14, background: C.accent+'22', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <Icon name="chartBar" size={20} color={C.accent} />
+          </div>
+          <div>
+            <div style={{ color:C.text, fontWeight:700, fontSize:18 }}>{t.salaryTitle}</div>
+            <div style={{ color:C.muted, fontSize:12 }}>AI-powered · Malaysian data</div>
+          </div>
+        </div>
+
+        {!predicted ? (
+          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+            <div>
+              <label style={labelStyle}>{t.jobTitle}</label>
+              <input style={inputStyle} value={jobTitle} onChange={e => setJobTitle(e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>{t.industry}</label>
+              <select style={inputStyle} value={industry} onChange={e => setIndustry(e.target.value)}>
+                {['Information Technology','Engineering','Business/Finance','Healthcare','Education','Marketing'].map(x => <option key={x}>{x}</option>)}
+              </select>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <div>
+                <label style={labelStyle}>{t.experience}</label>
+                <select style={inputStyle} value={exp} onChange={e => setExp(e.target.value)}>
+                  {['0','1','2','3','4','5+'].map(x => <option key={x} value={x}>{x} yr{x!=='1'?'s':''}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>{t.education}</label>
+                <select style={inputStyle} value={edu} onChange={e => setEdu(e.target.value)}>
+                  {['Diploma',"Bachelor's Degree","Master's Degree",'PhD'].map(x => <option key={x}>{x}</option>)}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label style={labelStyle}>{t.location}</label>
+              <select style={inputStyle} value={loc} onChange={e => setLoc(e.target.value)}>
+                {['Kuala Lumpur','Penang','Johor Bahru','Kota Kinabalu','Kuching','Shah Alam'].map(x => <option key={x}>{x}</option>)}
+              </select>
+            </div>
+            <GradientBtn onClick={handlePredict} style={{ marginTop:4 }}>
+              {loading ? '⏳ Predicting...' : t.predict}
+            </GradientBtn>
+          </div>
+        ) : (
+          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+            {/* Result card */}
+            <Card style={{ background:`linear-gradient(135deg,#1a3a6e,#0e2450)`, border:`1px solid ${C.accent}44` }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+                <div style={{ color:C.text, fontWeight:700, fontSize:15 }}>{t.salaryResult}</div>
+                <Tag label={`${jobTitle} · ${loc}`} color={C.accent} />
+              </div>
+              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:14 }}>
+                {[
+                  { label: t.min, val:'RM 2,800', sub:'25th pct', color: C.muted },
+                  { label: t.median, val:'RM 4,100', sub:'50th pct', color: C.text },
+                  { label: t.max, val:'RM 5,800', sub:'75th pct', color: C.teal },
+                ].map(m => (
+                  <div key={m.label} style={{ textAlign:'center' }}>
+                    <div style={{ color:C.muted, fontSize:11, marginBottom:4 }}>{m.label}</div>
+                    <div style={{ color:m.color, fontWeight:800, fontSize: m.label===t.median?22:17 }}>{m.val}</div>
+                    <div style={{ color:C.dimmed, fontSize:10 }}>{m.sub}</div>
+                  </div>
+                ))}
+              </div>
+              {/* salary bar */}
+              <div style={{ position:'relative', height:8, background:'rgba(255,255,255,0.1)', borderRadius:4, overflow:'hidden' }}>
+                <div style={{ position:'absolute', left:'15%', width:'55%', height:'100%', background:`linear-gradient(90deg,${C.accent},${C.teal})`, borderRadius:4 }} />
+                <div style={{ position:'absolute', left:'55%', top:-2, width:12, height:12, background:'#fff', borderRadius:6, boxShadow:'0 0 6px rgba(255,255,255,0.5)' }} />
+              </div>
+              <div style={{ display:'flex', justifyContent:'space-between', marginTop:4 }}>
+                <span style={{ color:C.dimmed, fontSize:10 }}>RM 1,700</span>
+                <span style={{ color:C.dimmed, fontSize:10 }}>RM 7,000+</span>
+              </div>
+              <div style={{ marginTop:10, padding:'8px 12px', background:'rgba(255,255,255,0.05)', borderRadius:10 }}>
+                <span style={{ color:C.muted, fontSize:11 }}>📊 Based on </span>
+                <span style={{ color:C.accent, fontSize:11, fontWeight:600 }}>1,240 records</span>
+                <span style={{ color:C.muted, fontSize:11 }}> · HuggingFace Malaysian Job Dataset</span>
+              </div>
+            </Card>
+
+            {/* Offer evaluation */}
+            <Card>
+              <div style={{ color:C.text, fontWeight:700, fontSize:15, marginBottom:12 }}>{t.offerEval}</div>
+              <div style={{ display:'flex', gap:10, alignItems:'center', marginBottom:10 }}>
+                <input
+                  type="number"
+                  style={{ ...inputStyle, flex:1 }}
+                  value={offerVal}
+                  onChange={e => setOfferVal(e.target.value)}
+                  placeholder="Enter offer amount"
+                />
+                <div style={{ padding:'12px 14px', background: offerColor+'22', borderRadius:12, border:`1px solid ${offerColor}44`, color:offerColor, fontWeight:700, fontSize:13, whiteSpace:'nowrap' }}>
+                  {offerLabel}
+                </div>
+              </div>
+              {offerStatus === 'below' && (
+                <div style={{ padding:'10px 12px', background: '#ef444418', borderRadius:10, border:`1px solid ${C.red}33` }}>
+                  <div style={{ color:C.red, fontSize:12, fontWeight:600, marginBottom:3 }}>💡 Negotiation Suggested</div>
+                  <div style={{ color:C.muted, fontSize:11 }}>Your offer is RM {4100-offer} below median. You have room to negotiate up to RM 4,100.</div>
+                </div>
+              )}
+            </Card>
+
+            {/* Industry comparison */}
+            <Card>
+              <div style={{ color:C.text, fontWeight:600, fontSize:14, marginBottom:12 }}>KL vs. Other Cities</div>
+              {[
+                { city:'Kuala Lumpur', val:4100, bar:100, color:C.accent },
+                { city:'Penang', val:3700, bar:90, color:C.teal },
+                { city:'Johor Bahru', val:3500, bar:85, color:C.purple },
+                { city:'Kota Kinabalu', val:3100, bar:76, color:C.amber },
+              ].map(c => (
+                <div key={c.city} style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
+                  <div style={{ width:80, color:C.muted, fontSize:12 }}>{c.city}</div>
+                  <div style={{ flex:1, height:6, background:'rgba(255,255,255,0.08)', borderRadius:3, overflow:'hidden' }}>
+                    <div style={{ width:`${c.bar}%`, height:'100%', background:c.color, borderRadius:3 }} />
+                  </div>
+                  <div style={{ width:70, color:C.text, fontSize:12, fontWeight:600, textAlign:'right' }}>RM {c.val.toLocaleString()}</div>
+                </div>
+              ))}
+            </Card>
+
+            <button onClick={() => setPredicted(false)} style={{ background:'none', border:`1px solid ${C.border}`, borderRadius:12, padding:'12px', color:C.muted, fontSize:14, cursor:'pointer' }}>
+              ← New Prediction
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/* ── SCREEN: AI CHAT ────────────────────────────────────────────────────── */
+const ChatScreen = ({ t }) => {
+  const [tab, setTab] = useState('rights');
+  const [coachStep, setCoachStep] = useState(0); // 0=choose, 1=scenario, 2=feedback
+  const [scenario, setScenario] = useState(null);
+  const [userMsg, setUserMsg] = useState('');
+  const [chatInput, setChatInput] = useState('');
+
+  const tabs = [
+    { key:'rights', label: t.labourRights, icon:'shield', color: C.purple },
+    { key:'coach', label: t.negotiationCoach, icon:'lightning', color: C.teal },
+    { key:'contract', label: t.contractReview, icon:'doc', color: C.amber },
+  ];
+
+  const chatMessages = [
+    { from:'bot', text: 'Hello! I\'m your WageWise AI assistant, trained on Malaysian employment law. How can I help you today?' },
+    { from:'user', text: 'What is my EPF entitlement as a fresh graduate?' },
+    { from:'bot', text: 'Under Malaysian law, both employees and employers must contribute to EPF (KWSP):\n\n• Employee contribution: 11% of gross salary\n• Employer contribution: 13% (salary ≤ RM5,000)\n\n📖 Reference: EPF Act 1991, Section 43\n\nFor a RM 4,000 salary, you\'d contribute RM 440/month, and your employer contributes RM 520.' },
+  ];
+
+  const coachMessages = scenario === 'lowball' ? [
+    { from:'bot', text: t.coachIntro },
+    { from:'bot', text: '🎭 Scenario: The Lowball Offer\n\nHR says: "We\'d like to offer you RM 2,800/month for the Software Engineer role. What do you think?"\n\nHow do you respond?' },
+    ...(userMsg ? [
+      { from:'user', text: userMsg },
+      { from:'bot', text: '✅ Feedback:\n\n• Strength: You acknowledged the offer professionally before countering.\n\n• Improve: Reference market data — say "Based on market research showing RM 3,800–4,100 for this role in KL…" for stronger credibility.\n\n• Malaysian tip: Use polite indirect language — "I was hoping we could discuss…" works better than a direct counter.' }
+    ] : []) 
+  ] : [
+    { from:'bot', text: t.coachIntro },
+  ];
+
+  return (
+    <div style={{ background: C.bg, height:'100%', display:'flex', flexDirection:'column' }}>
+      {/* Header */}
+      <div style={{ padding:'20px 22px 0' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
+          <div style={{ width:40, height:40, borderRadius:14, background: C.purple+'22', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <Icon name="robot" size={20} color={C.purple} />
+          </div>
+          <div>
+            <div style={{ color:C.text, fontWeight:700, fontSize:18 }}>{t.chatTitle}</div>
+            <div style={{ color:C.muted, fontSize:12 }}>{t.chatSubtitle}</div>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display:'flex', gap:6, background: C.card, borderRadius:14, padding:4, marginBottom:16 }}>
+          {tabs.map(tb => (
+            <button key={tb.key} onClick={() => { setTab(tb.key); setCoachStep(0); setScenario(null); setUserMsg(''); }} style={{
+              flex:1, padding:'8px 4px', border:'none', borderRadius:10, cursor:'pointer',
+              background: tab===tb.key ? tb.color+'33' : 'transparent',
+              color: tab===tb.key ? tb.color : C.muted,
+              fontSize:11, fontWeight:600, letterSpacing:0.1, transition:'all 0.2s',
+              display:'flex', flexDirection:'column', alignItems:'center', gap:3,
+            }}>
+              <Icon name={tb.icon} size={16} color={tab===tb.key ? tb.color : C.dimmed} />
+              {tb.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Tab: Labour Rights Chat */}
+      {tab === 'rights' && (
+        <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+          {/* Suggested topics */}
+          <div style={{ padding:'0 22px 12px' }}>
+            <div style={{ color:C.muted, fontSize:12, marginBottom:8 }}>{t.suggestedTopics}</div>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+              {[t.topic1,t.topic2,t.topic3,t.topic4].map((tp,i) => (
+                <button key={i} style={{ background: C.purple+'18', border:`1px solid ${C.purple}33`, borderRadius:20, padding:'6px 12px', color:C.purple, fontSize:11, cursor:'pointer', fontWeight:500 }}>{tp}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Messages */}
+          <div style={{ flex:1, overflowY:'auto', padding:'0 22px 12px' }}>
+            {chatMessages.map((m,i) => (
+              <div key={i} style={{ display:'flex', flexDirection: m.from==='bot' ? 'row' : 'row-reverse', gap:10, marginBottom:14, alignItems:'flex-start' }}>
+                {m.from==='bot' && (
+                  <div style={{ width:32, height:32, borderRadius:12, background: C.purple+'33', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:2 }}>
+                    <span style={{ fontSize:14 }}>🤖</span>
+                  </div>
+                )}
+                <div style={{
+                  maxWidth:'80%', padding:'12px 14px', borderRadius: m.from==='bot' ? '4px 16px 16px 16px' : '16px 4px 16px 16px',
+                  background: m.from==='bot' ? C.card : `linear-gradient(135deg,${C.accent},#6366F1)`,
+                  color: C.text, fontSize:13, lineHeight:1.6, whiteSpace:'pre-line',
+                  border: m.from==='bot' ? `1px solid ${C.border}` : 'none',
+                }}>{m.text}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Input */}
+          <div style={{ padding:'10px 22px 12px', display:'flex', gap:10, alignItems:'center', borderTop:`1px solid ${C.border}` }}>
+            <input
+              value={chatInput}
+              onChange={e => setChatInput(e.target.value)}
+              placeholder={t.typeMessage}
+              style={{ flex:1, background: C.card, border:`1px solid ${C.border}`, borderRadius:22, padding:'12px 16px', color:C.text, fontSize:13, outline:'none' }}
+            />
+            <button style={{ width:44, height:44, borderRadius:22, background:`linear-gradient(135deg,${C.purple},#6366F1)`, border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <Icon name="send" size={18} color="#fff" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Negotiation Coach */}
+      {tab === 'coach' && (
+        <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+          {scenario === null ? (
+            <div style={{ padding:'0 22px', flex:1 }}>
+              <Card style={{ background:`linear-gradient(135deg,#1a3a3a,#0e2020)`, border:`1px solid ${C.teal}33`, marginBottom:14 }}>
+                <div style={{ fontSize:32, marginBottom:8 }}>🤝</div>
+                <div style={{ color:C.text, fontSize:14, lineHeight:1.6 }}>{t.coachIntro}</div>
+              </Card>
+              {[
+                { key:'lowball', label: t.scenario1, icon:'⬇️', desc:'Practice responding to a below-market offer with confidence and data.', color: C.teal },
+                { key:'raise', label: t.scenario2, icon:'📈', desc:'Practice requesting a raise from your current employer.', color: C.accent },
+              ].map(s => (
+                <Card key={s.key} onClick={() => setScenario(s.key)} style={{ marginBottom:12, cursor:'pointer', border:`1px solid ${s.color}33` }}>
+                  <div style={{ display:'flex', gap:14, alignItems:'center' }}>
+                    <div style={{ width:48, height:48, borderRadius:16, background: s.color+'22', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0 }}>
+                      {s.icon}
+                    </div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ color:C.text, fontWeight:700, fontSize:15, marginBottom:4 }}>{s.label}</div>
+                      <div style={{ color:C.muted, fontSize:12, lineHeight:1.4 }}>{s.desc}</div>
+                    </div>
+                    <Icon name="chevRight" size={20} color={C.dimmed} />
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+              <div style={{ padding:'0 22px 10px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <button onClick={() => { setScenario(null); setUserMsg(''); }} style={{ background:'none', border:'none', color:C.muted, fontSize:13, cursor:'pointer' }}>← Back</button>
+                <Tag label={scenario==='lowball' ? t.scenario1 : t.scenario2} color={C.teal} />
+              </div>
+              <div style={{ flex:1, overflowY:'auto', padding:'0 22px 12px' }}>
+                {coachMessages.map((m,i) => (
+                  <div key={i} style={{ display:'flex', flexDirection: m.from==='bot' ? 'row' : 'row-reverse', gap:10, marginBottom:14, alignItems:'flex-start' }}>
+                    {m.from==='bot' && (
+                      <div style={{ width:32, height:32, borderRadius:12, background: C.teal+'33', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                        <span style={{ fontSize:14 }}>🎓</span>
+                      </div>
+                    )}
+                    <div style={{ maxWidth:'80%', padding:'12px 14px', borderRadius: m.from==='bot' ? '4px 16px 16px 16px' : '16px 4px 16px 16px', background: m.from==='bot' ? C.card : `linear-gradient(135deg,${C.teal},#0EA5E9)`, color:C.text, fontSize:13, lineHeight:1.6, whiteSpace:'pre-line', border: m.from==='bot' ? `1px solid ${C.border}` : 'none' }}>{m.text}</div>
+                  </div>
+                ))}
+              </div>
+              {!userMsg && (
+                <div style={{ padding:'10px 22px 12px', display:'flex', gap:10, alignItems:'center', borderTop:`1px solid ${C.border}` }}>
+                  <input
+                    value={chatInput}
+                    onChange={e => setChatInput(e.target.value)}
+                    placeholder="Your negotiation response..."
+                    style={{ flex:1, background: C.card, border:`1px solid ${C.border}`, borderRadius:22, padding:'12px 16px', color:C.text, fontSize:13, outline:'none' }}
+                  />
+                  <button onClick={() => { setUserMsg(chatInput || 'Thank you for the offer. Based on my research of the Malaysian market for this role, I was expecting something closer to RM 3,800. Is there flexibility?'); setChatInput(''); }} style={{ width:44, height:44, borderRadius:22, background:`linear-gradient(135deg,${C.teal},#0EA5E9)`, border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    <Icon name="send" size={18} color="#fff" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab: Contract Review */}
+      {tab === 'contract' && (
+        <div style={{ flex:1, overflow:'auto', padding:'0 22px 16px' }}>
+          <Card style={{ border:`1px solid ${C.amber}33`, marginBottom:14 }}>
+            <div style={{ color:C.amber, fontWeight:700, fontSize:14, marginBottom:8 }}>📄 Paste Contract Clause</div>
+            <textarea
+              placeholder="Paste a section of your employment contract here for AI review..."
+              style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:`1px solid ${C.border}`, borderRadius:12, padding:'12px', color:C.text, fontSize:13, minHeight:100, resize:'none', outline:'none', lineHeight:1.6 }}
+              defaultValue="The employee shall be required to work such additional hours as the Company may require from time to time, without additional compensation."
+            />
+            <GradientBtn style={{ marginTop:12, background:`linear-gradient(135deg,${C.amber},#f97316)`, boxShadow:'none' }}>Analyse Contract</GradientBtn>
+          </Card>
+
+          {/* Flagged clause */}
+          <div style={{ color:C.text, fontWeight:700, fontSize:15, marginBottom:12 }}>⚠️ Flagged Issues</div>
+          <Card style={{ border:`1px solid ${C.red}44`, background:'#1a0f0f', marginBottom:12 }}>
+            <div style={{ display:'flex', gap:10, alignItems:'flex-start' }}>
+              <div style={{ width:32, height:32, borderRadius:10, background: C.red+'22', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <span style={{ fontSize:16 }}>🚨</span>
+              </div>
+              <div>
+                <div style={{ color:C.red, fontWeight:600, fontSize:13, marginBottom:4 }}>Potential Illegal Clause</div>
+                <div style={{ color:C.muted, fontSize:12, lineHeight:1.6, marginBottom:8 }}>"…additional hours…without additional compensation"</div>
+                <div style={{ padding:'8px 10px', background:'rgba(239,68,68,0.1)', borderRadius:8, marginBottom:8 }}>
+                  <div style={{ color:C.text, fontSize:12, lineHeight:1.6 }}>This clause may violate <span style={{ color:C.red, fontWeight:600 }}>Section 60A of Employment Act 1955</span>, which requires overtime pay at 1.5× hourly rate for hours beyond 8/day.</div>
+                </div>
+                <div style={{ color:C.muted, fontSize:11 }}>📌 Suggested action: Request revision or seek clarification before signing.</div>
+              </div>
+            </div>
+          </Card>
+          <Card style={{ border:`1px solid ${C.green}44`, background:'#0f1a0f' }}>
+            <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+              <div style={{ width:32, height:32, borderRadius:10, background: C.green+'22', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <Icon name="check" size={16} color={C.green} />
+              </div>
+              <div>
+                <div style={{ color:C.green, fontWeight:600, fontSize:13 }}>No Issues Found</div>
+                <div style={{ color:C.muted, fontSize:12 }}>Termination notice period: 4 weeks (compliant)</div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ── SCREEN: COST OF LIVING ─────────────────────────────────────────────── */
+const COLScreen = ({ t }) => {
+  const [salary, setSalary] = useState('4000');
+  const [city, setCity] = useState('Kuala Lumpur');
+  const [compared, setCompared] = useState(true);
+
+  const gross = parseInt(salary) || 4000;
+  const epf = Math.round(gross * 0.11);
+  const socso = Math.min(Math.round(gross * 0.005), 29.75);
+  const tax = gross > 5000 ? Math.round((gross - 5000) * 0.01) : 0;
+  const net = gross - epf - socso - tax;
+
+  const cities = {
+    'Kuala Lumpur':   { rent:1400, food:450, transport:200, utilities:120, healthcare:80 },
+    'Penang':         { rent:900,  food:380, transport:150, utilities:100, healthcare:70 },
+    'Johor Bahru':    { rent:850,  food:350, transport:180, utilities:100, healthcare:70 },
+    'Kota Kinabalu':  { rent:800,  food:320, transport:160, utilities:90,  healthcare:60 },
+  };
+  const exp = cities[city] || cities['Kuala Lumpur'];
+  const totalExp = Object.values(exp).reduce((a,b)=>a+b,0);
+  const disposable = net - totalExp;
+  const livingWage = city==='Kuala Lumpur' ? 2900 : city==='Penang' ? 2500 : 2200;
+  const meetsLW = net >= livingWage;
+
+  const inputStyle = { width:'100%', background: C.cardAlt, border:`1px solid ${C.border}`, borderRadius:12, padding:'12px 14px', color:C.text, fontSize:14, outline:'none', appearance:'none' };
+  const labelStyle = { color:C.muted, fontSize:12, fontWeight:500, marginBottom:6, display:'block' };
+
+  const expColors = { rent:C.accent, food:C.teal, transport:C.purple, utilities:C.amber, healthcare:C.green };
+  const expLabels = { rent:t.rent, food:t.food, transport:t.transport, utilities:t.utilities, healthcare:t.healthcare };
+
+  return (
+    <div style={{ background: C.bg, minHeight:'100%', paddingBottom:16 }}>
+      <div style={{ padding:'20px 22px 0' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:20 }}>
+          <div style={{ width:40, height:40, borderRadius:14, background: C.amber+'22', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <Icon name="map" size={20} color={C.amber} />
+          </div>
+          <div>
+            <div style={{ color:C.text, fontWeight:700, fontSize:18 }}>{t.colTitle}</div>
+            <div style={{ color:C.muted, fontSize:12 }}>Real purchasing power analysis</div>
+          </div>
+        </div>
+
+        {/* Inputs */}
+        <Card style={{ marginBottom:14 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            <div>
+              <label style={labelStyle}>{t.grossSalary}</label>
+              <input type="number" style={inputStyle} value={salary} onChange={e => setSalary(e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>{t.selectCity}</label>
+              <select style={inputStyle} value={city} onChange={e => setCity(e.target.value)}>
+                {Object.keys(cities).map(c => <option key={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+        </Card>
+
+        {/* Deductions */}
+        <Card style={{ marginBottom:14 }}>
+          <div style={{ color:C.text, fontWeight:700, fontSize:15, marginBottom:12 }}>{t.afterDeductions}</div>
+          {[
+            { label: t.epf, val: -epf, color: C.accent },
+            { label: t.socso, val: -socso, color: C.purple },
+            { label: t.tax, val: tax===0 ? 0 : -tax, color: C.amber },
+          ].map(d => (
+            <div key={d.label} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+              <span style={{ color:C.muted, fontSize:13 }}>{d.label}</span>
+              <span style={{ color: d.val < 0 ? C.red : C.green, fontWeight:600, fontSize:13 }}>
+                {d.val < 0 ? `–RM ${Math.abs(d.val)}` : d.val===0 ? 'RM 0' : `–RM ${d.val}`}
+              </span>
+            </div>
+          ))}
+          <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:10, display:'flex', justifyContent:'space-between' }}>
+            <span style={{ color:C.text, fontWeight:700, fontSize:15 }}>{t.netPay}</span>
+            <span style={{ color:C.teal, fontWeight:800, fontSize:18 }}>RM {net.toLocaleString()}</span>
+          </div>
+          {/* Living wage indicator */}
+          <div style={{ marginTop:10, padding:'8px 12px', background: meetsLW ? C.green+'18' : C.red+'18', borderRadius:10, border:`1px solid ${meetsLW ? C.green : C.red}33` }}>
+            <span style={{ color: meetsLW ? C.green : C.red, fontSize:12, fontWeight:600 }}>
+              {meetsLW ? `✅ Meets living wage for ${city} (RM ${livingWage})` : `⚠️ Below living wage for ${city} (RM ${livingWage})`}
+            </span>
+          </div>
+        </Card>
+
+        {/* Expenses */}
+        <Card style={{ marginBottom:14 }}>
+          <div style={{ color:C.text, fontWeight:700, fontSize:15, marginBottom:12 }}>{t.expenses} – {city}</div>
+          {Object.entries(exp).map(([key, val]) => (
+            <div key={key} style={{ marginBottom:10 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                <span style={{ color:C.muted, fontSize:12 }}>{expLabels[key]}</span>
+                <span style={{ color:C.text, fontSize:12, fontWeight:600 }}>RM {val}</span>
+              </div>
+              <div style={{ height:5, background:'rgba(255,255,255,0.08)', borderRadius:3, overflow:'hidden' }}>
+                <div style={{ width:`${(val/1400)*100}%`, height:'100%', background:expColors[key], borderRadius:3 }} />
+              </div>
+            </div>
+          ))}
+          <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:10, display:'flex', justifyContent:'space-between' }}>
+            <span style={{ color:C.text, fontWeight:700 }}>Total Expenses</span>
+            <span style={{ color:C.red, fontWeight:700 }}>RM {totalExp}</span>
+          </div>
+        </Card>
+
+        {/* Disposable */}
+        <Card style={{ background:`linear-gradient(135deg, ${disposable>0?'#0f2a0f':'#2a0f0f'}, #0e1420)`, border:`1px solid ${disposable>0?C.green:C.red}44`, marginBottom:14 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <div>
+              <div style={{ color:C.muted, fontSize:12, marginBottom:4 }}>{t.disposable}</div>
+              <div style={{ color: disposable>0 ? C.green : C.red, fontWeight:800, fontSize:28 }}>
+                {disposable >= 0 ? '+' : '–'}RM {Math.abs(disposable).toLocaleString()}
+              </div>
+            </div>
+            <div style={{ width:64, height:64, borderRadius:32, background: disposable>0?C.green+'22':C.red+'22', display:'flex', alignItems:'center', justifyContent:'center', border:`2px solid ${disposable>0?C.green:C.red}44` }}>
+              <span style={{ fontSize:28 }}>{disposable>0?'💚':'⚠️'}</span>
+            </div>
+          </div>
+        </Card>
+
+        {/* City comparison */}
+        <div style={{ color:C.text, fontWeight:700, fontSize:15, marginBottom:12 }}>City Comparison (RM {gross.toLocaleString()} gross)</div>
+        {Object.entries(cities).map(([c, e]) => {
+          const cNet = gross - Math.round(gross*0.11) - Math.min(Math.round(gross*0.005),29.75);
+          const cExp = Object.values(e).reduce((a,b)=>a+b,0);
+          const cDisp = cNet - cExp;
+          const isSelected = c === city;
+          return (
+            <Card key={c} onClick={() => setCity(c)} style={{ marginBottom:10, cursor:'pointer', border: isSelected ? `1px solid ${C.accent}66` : `1px solid ${C.border}`, background: isSelected ? '#1a3a6e33' : C.card }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div>
+                  <div style={{ color:C.text, fontWeight:600, fontSize:14 }}>{c} {isSelected && '●'}</div>
+                  <div style={{ color:C.muted, fontSize:11, marginTop:2 }}>Net: RM {cNet.toLocaleString()} · Exp: RM {cExp}</div>
+                </div>
+                <div style={{ textAlign:'right' }}>
+                  <div style={{ color: cDisp>0?C.green:C.red, fontWeight:700, fontSize:16 }}>
+                    {cDisp>=0?'+':'–'}RM {Math.abs(cDisp)}
+                  </div>
+                  <div style={{ color:C.muted, fontSize:10, marginTop:2 }}>{t.disposable}</div>
+                </div>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+/* ── SCREEN: PROFILE ────────────────────────────────────────────────────── */
+const ProfileScreen = ({ t, lang, setLang }) => {
+  const langs = [ { key:'en', label:'English' }, { key:'bm', label:'Bahasa Malaysia' }, { key:'zh', label:'中文' }, { key:'ta', label:'தமிழ்' } ];
+  return (
+    <div style={{ background: C.bg, minHeight:'100%', paddingBottom:16 }}>
+      <div style={{ padding:'20px 22px 0' }}>
+        {/* Avatar */}
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', marginBottom:24 }}>
+          <div style={{ width:80, height:80, borderRadius:40, background:`linear-gradient(135deg,${C.accent},${C.teal})`, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:12, boxShadow:`0 8px 32px ${C.accentGlow}` }}>
+            <span style={{ color:'#fff', fontWeight:800, fontSize:28 }}>XS</span>
+          </div>
+          <div style={{ color:C.text, fontWeight:700, fontSize:20 }}>Chew Xu Sheng</div>
+          <div style={{ color:C.muted, fontSize:13 }}>{t.degree}</div>
+          <div style={{ color:C.dimmed, fontSize:12 }}>{t.university}</div>
+          <div style={{ display:'flex', gap:8, marginTop:12 }}>
+            <Tag label="Final Year Student" color={C.accent} />
+            <Tag label="IT / CS" color={C.teal} />
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:20 }}>
+          {[
+            { label: t.salaryGoal, val:'RM 4,500', color: C.accent },
+            { label: t.negotiationScore, val:'78 / 100', color: C.teal },
+            { label: 'Reports', val:'3 saved', color: C.purple },
+          ].map(s => (
+            <Card key={s.label} style={{ padding:'12px 10px', textAlign:'center' }}>
+              <div style={{ color:s.color, fontWeight:800, fontSize:15 }}>{s.val}</div>
+              <div style={{ color:C.muted, fontSize:10, marginTop:3, lineHeight:1.3 }}>{s.label}</div>
+            </Card>
+          ))}
+        </div>
+
+        {/* Language switcher */}
+        <Card style={{ marginBottom:14 }}>
+          <div style={{ color:C.text, fontWeight:600, fontSize:14, marginBottom:12 }}>🌐 Language / Bahasa / 语言 / மொழி</div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+            {langs.map(l => (
+              <button key={l.key} onClick={() => setLang(l.key)} style={{
+                padding:'10px', border: lang===l.key ? `1px solid ${C.accent}88` : `1px solid ${C.border}`,
+                borderRadius:12, background: lang===l.key ? C.accent+'22' : 'transparent',
+                color: lang===l.key ? C.accent : C.muted, fontSize:13, fontWeight:600, cursor:'pointer', transition:'all 0.2s',
+              }}>{l.label}</button>
+            ))}
+          </div>
+        </Card>
+
+        {/* Settings list */}
+        {[
+          { icon:'doc', label:'Saved Reports', sub:'3 reports', color:C.accent },
+          { icon:'settings', label:'Notifications', sub:'On', color:C.amber },
+          { icon:'shield', label:'Privacy', sub:'Data encrypted', color:C.green },
+          { icon:'info', label:'About WageWise', sub:'v1.0 · TAR UMT FYP 2026', color:C.muted },
+        ].map((s,i) => (
+          <Card key={i} style={{ marginBottom:10, display:'flex', gap:14, alignItems:'center', cursor:'pointer' }}>
+            <div style={{ width:40, height:40, borderRadius:14, background: s.color+'22', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              <Icon name={s.icon} size={18} color={s.color} />
+            </div>
+            <div style={{ flex:1 }}>
+              <div style={{ color:C.text, fontWeight:600, fontSize:14 }}>{s.label}</div>
+              <div style={{ color:C.muted, fontSize:12, marginTop:1 }}>{s.sub}</div>
+            </div>
+            <Icon name="chevRight" size={18} color={C.dimmed} />
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/* ── BOTTOM NAV ─────────────────────────────────────────────────────────── */
+const BottomNav = ({ tab, setTab, t, navBg }) => {
+  const items = [
+    { key:'home',    icon:'home',     label: t.navHome },
+    { key:'salary',  icon:'salary',   label: t.navSalary },
+    { key:'chat',    icon:'chat',     label: t.navChat },
+    { key:'col',     icon:'col',      label: t.navCOL },
+    { key:'profile', icon:'profile',  label: t.navProfile },
+  ];
+  const activeColor = [
+    { key:'home',    color:C.accent },
+    { key:'salary',  color:C.accent },
+    { key:'chat',    color:C.purple },
+    { key:'col',     color:C.amber },
+    { key:'profile', color:C.teal },
+  ];
+  const ac = activeColor.find(a => a.key===tab)?.color || C.accent;
+  return (
+    <div className="bottom-nav" style={{ background: navBg || 'rgba(14,27,46,0.96)', backdropFilter:'blur(20px)', borderTop:`1px solid ${C.border}` }}>
+      {items.map(item => (
+        <div key={item.key} className={`nav-item ${tab===item.key?'active':''}`} onClick={() => setTab(item.key)}>
+          <Icon name={item.icon} size={22} color={tab===item.key ? ac : '#fff'} />
+          <span className="nav-label" style={{ color: tab===item.key ? ac : '#888' }}>{item.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+/* ── STATUS BAR ─────────────────────────────────────────────────────────── */
+const StatusBar = ({ dark=false }) => (
+  <div className="status-bar" style={{ color: dark ? '#000' : '#fff' }}>
+    <span className="status-time">9:41</span>
+    <div className="status-icons">
+      <svg width="16" height="12" viewBox="0 0 16 12" fill={dark?'#000':'#fff'}><rect x="0" y="6" width="3" height="6" rx="1"/><rect x="4.5" y="4" width="3" height="8" rx="1"/><rect x="9" y="1" width="3" height="11" rx="1"/><rect x="13.5" y="0" width="2.5" height="12" rx="1" opacity="0.3"/></svg>
+      <svg width="16" height="12" viewBox="0 0 20 15" fill={dark?'#000':'#fff'}><path d="M10 3C6.5 3 3.4 4.5 1.2 7L0 5.6C2.6 2.7 6.1 1 10 1s7.4 1.7 10 4.6L18.8 7C16.6 4.5 13.5 3 10 3z"/><path d="M10 7c-2 0-3.8.8-5.1 2.2L3.7 8C5.4 6.1 7.6 5 10 5s4.6 1.1 6.3 3l-1.2 1.2C13.8 7.8 12 7 10 7z"/><circle cx="10" cy="13" r="2"/></svg>
+      <svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x="0.5" y="0.5" width="21" height="11" rx="3.5" stroke={dark?'#000':'#fff'} strokeOpacity="0.35"/><rect x="2" y="2" width="17" height="8" rx="2" fill={dark?'#000':'#fff'}/><path d="M23 4v4a2 2 0 000-4z" fill={dark?'#000':'#fff'} fillOpacity="0.4"/></svg>
+    </div>
+  </div>
+);
+
+/* ── MAIN APP ───────────────────────────────────────────────────────────── */
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "accentColor": "#3B82F6",
+  "showOnboarding": true,
+  "darkMode": true,
+  "fontSize": 14
+}/*EDITMODE-END*/;
+
+const App = () => {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  const [screen, setScreen] = useState('onboarding');
+  const [tab, setTab] = useState('home');
+  const [lang, setLang] = useState('en');
+  const t = T[lang] || T.en;
+
+  const navigate = (to) => {
+    setTab(to);
+    setScreen('app');
+  };
+
+  return (
+    <>
+      <div className="phone">
+        <div className="phone-screen" style={{ background: C.bg }}>
+          <div className="dynamic-island" />
+          <StatusBar />
+
+          {screen === 'onboarding' && tweaks.showOnboarding ? (
+            <div className="screen-content">
+              <OnboardingScreen t={t} onDone={() => setScreen('app')} />
+            </div>
+          ) : (
+            <>
+              <div className="inner-scroll">
+                {tab === 'home'    && <HomeScreen t={t} navigate={navigate} />}
+                {tab === 'salary'  && <SalaryScreen t={t} />}
+                {tab === 'chat'    && <ChatScreen t={t} />}
+                {tab === 'col'     && <COLScreen t={t} />}
+                {tab === 'profile' && <ProfileScreen t={t} lang={lang} setLang={setLang} />}
+              </div>
+              <BottomNav tab={tab} setTab={setTab} t={t} />
+            </>
+          )}
+
+          <div className="home-indicator" />
+        </div>
+      </div>
+
+      <TweaksPanel>
+        <TweakSection title="Appearance">
+          <TweakColor label="Accent Color" value={tweaks.accentColor} onChange={v => setTweak('accentColor', v)} />
+          <TweakToggle label="Show Onboarding" value={tweaks.showOnboarding} onChange={v => setTweak('showOnboarding', v)} />
+        </TweakSection>
+        <TweakSection title="Navigation">
+          {screen === 'onboarding' ? null : (
+            <>
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {['home','salary','chat','col','profile'].map(s => (
+                  <button key={s} onClick={() => { setTab(s); setScreen('app'); }}
+                    style={{ padding:'8px 12px', background: tab===s ? C.accent+'33' : C.card, border:`1px solid ${tab===s?C.accent:C.border}`, borderRadius:8, color: tab===s?C.accent:C.muted, cursor:'pointer', fontSize:13, textAlign:'left' }}>
+                    {s.charAt(0).toUpperCase()+s.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </TweakSection>
+        <TweakSection title="Language">
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
+            {[['en','English'],['bm','BM'],['zh','中文'],['ta','தமிழ்']].map(([k,l]) => (
+              <button key={k} onClick={() => setLang(k)} style={{ padding:'7px', background: lang===k?C.accent+'33':C.card, border:`1px solid ${lang===k?C.accent:C.border}`, borderRadius:8, color:lang===k?C.accent:C.muted, cursor:'pointer', fontSize:12, fontWeight:600 }}>{l}</button>
+            ))}
+          </div>
+        </TweakSection>
+      </TweaksPanel>
+    </>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
