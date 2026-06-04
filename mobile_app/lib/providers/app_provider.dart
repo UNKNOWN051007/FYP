@@ -1,31 +1,40 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 import '../models/user_model.dart';
 import '../models/salary_prediction.dart';
 import '../models/col_evaluation.dart';
 import '../models/chat_message.dart';
-import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/api_service.dart';
 import '../services/supabase_service.dart';
 
 class AppProvider extends ChangeNotifier {
-  final AuthService authService;
-  final ApiService apiService;
-  final SupabaseService supabaseService;
-
-  AppProvider({
-    required this.authService,
-    required this.apiService,
-    required this.supabaseService,
-  });
-
-  // ── Auth state ───────────────────────────────────────────────
   UserModel? _user;
-  UserModel? get user => _user;
-  bool get isSignedIn => _user != null;
-
   String _language = 'en';
+  List<SalaryPrediction> _predictions = [];
+  SalaryPrediction? _latestPrediction;
+  bool _predictingSalary = false;
+  String? _salaryError;
+  List<ChatMessage> _messages = [];
+  ChatModule _chatModule = ChatModule.labourRights;
+  bool _chatLoading = false;
+  String? _activeSessionId;
+  List<ColEvaluation> _colResults = [];
+  bool _colLoading = false;
+  String? _colError;
+
+  UserModel? get user => _user;
   String get language => _language;
+  List<SalaryPrediction> get predictions => _predictions;
+  SalaryPrediction? get latestPrediction => _latestPrediction;
+  bool get predictingSalary => _predictingSalary;
+  String? get salaryError => _salaryError;
+  List<ChatMessage> get messages => _messages;
+  ChatModule get chatModule => _chatModule;
+  bool get chatLoading => _chatLoading;
+  List<ColEvaluation> get colResults => _colResults;
+  bool get colLoading => _colLoading;
+  String? get colError => _colError;
 
   void setUser(UserModel? user) {
     _user = user;
@@ -36,189 +45,150 @@ class AppProvider extends ChangeNotifier {
   Future<void> setLanguage(String lang) async {
     _language = lang;
     if (_user != null) {
-      _user = _user!.copyWith(languagePref: lang);
-      await authService.updateProfile(_user!);
+      final updated = _user!.copyWith(languagePref: lang);
+      _user = updated;
+      try {
+        await AuthService.updateProfile(updated);
+      } catch (_) {}
     }
     notifyListeners();
   }
 
   Future<void> signOut() async {
-    await authService.signOut();
+    await AuthService.signOut();
     _user = null;
-    _predictions.clear();
-    _messages.clear();
+    _predictions = [];
+    _latestPrediction = null;
+    _messages = [];
+    _colResults = [];
+    _activeSessionId = null;
     notifyListeners();
   }
 
-  // ── Salary Intelligence ──────────────────────────────────────
-  List<SalaryPrediction> _predictions = [];
-  List<SalaryPrediction> get predictions => _predictions;
+  Future<void> init() async {
+    try {
+      final profile = await AuthService.getProfile();
+      if (profile != null) {
+        _user = profile;
+        _language = profile.languagePref;
+        _predictions = await SupabaseService.getPredictions();
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
 
-  SalaryPrediction? _latestPrediction;
-  SalaryPrediction? get latestPrediction => _latestPrediction;
-
-  bool _predictingsalary = false;
-  bool get predictingSalary => _predictingsalary;
-
-  String? _salaryError;
-  String? get salaryError => _salaryError;
-
-  Future<SalaryPrediction?> predictSalary({
+  Future<void> predictSalary({
     required String jobTitle,
     required String industry,
     required String educationLevel,
     required int yearsExperience,
     required String location,
   }) async {
-    _predictingsalary = true;
+    _predictingSalary = true;
     _salaryError = null;
     notifyListeners();
     try {
-      final pred = await apiService.predictSalary(
+      final result = await ApiService.predictSalary(
         jobTitle: jobTitle,
         industry: industry,
         educationLevel: educationLevel,
         yearsExperience: yearsExperience,
         location: location,
       );
-      _latestPrediction = pred;
-      _predictions.insert(0, pred);
-      if (isSignedIn) await supabaseService.savePrediction(pred);
-      return pred;
+      _latestPrediction = result;
+      _predictions = [result, ..._predictions];
+      await SupabaseService.savePrediction(result);
     } catch (e) {
       _salaryError = e.toString();
-      return null;
     } finally {
-      _predictingsalary = false;
+      _predictingSalary = false;
       notifyListeners();
     }
   }
 
-  // ── Chat ─────────────────────────────────────────────────────
-  List<ChatMessage> _messages = [];
-  List<ChatMessage> get messages => List.unmodifiable(_messages);
-
-  String _chatModule = 'labour_rights';
-  String get chatModule => _chatModule;
-
-  bool _chatLoading = false;
-  bool get chatLoading => _chatLoading;
-
-  String? _activeSessionId;
-
-  void switchChatModule(String module) {
+  Future<void> switchChatModule(ChatModule module) async {
     _chatModule = module;
-    _messages = _defaultMessages(module);
+    _messages = [];
     _activeSessionId = null;
+    notifyListeners();
+    try {
+      _activeSessionId = await SupabaseService.createChatSession(module.apiValue);
+    } catch (_) {
+      _activeSessionId = const Uuid().v4();
+    }
     notifyListeners();
   }
 
-  List<ChatMessage> _defaultMessages(String module) {
-    if (module == 'labour_rights') {
-      return [
-        ChatMessage.bot(
-          "Hello! I'm your WageWise AI assistant, trained on Malaysian employment law. How can I help you today?",
-        ),
-      ];
-    }
-    if (module == 'negotiation_coach') {
-      return [
-        ChatMessage.bot(
-          "Hi! I'm your WageWise negotiation coach. Choose a scenario to practice, or just ask me anything about salary negotiation.",
-        ),
-      ];
-    }
-    return [
-      ChatMessage.bot(
-        "Paste a section of your employment contract and I'll analyse it for compliance with Malaysian law.",
-      ),
-    ];
-  }
-
   Future<void> sendMessage(String content) async {
-    _messages.add(ChatMessage.user(content));
+    _activeSessionId ??= const Uuid().v4();
+    final userMsg = ChatMessage(
+      messageId: const Uuid().v4(),
+      role: 'user',
+      content: content,
+    );
+    _messages = [..._messages, userMsg];
     _chatLoading = true;
     notifyListeners();
 
     try {
-      if (_activeSessionId == null && isSignedIn) {
-        _activeSessionId =
-            await supabaseService.createChatSession(_chatModule);
-      }
-
+      await SupabaseService.saveChatMessage(
+        sessionId: _activeSessionId!,
+        role: 'user',
+        content: content,
+      );
       final history = _messages
-          .where((m) => !m.isBot)
+          .where((m) => m != userMsg)
           .map((m) => {'role': m.role, 'content': m.content})
           .toList();
 
-      final reply = await apiService.sendChat(
-        query: content,
-        module: _chatModule,
-        sessionId: _activeSessionId,
-        history: history,
-      );
-
-      _messages.add(reply);
-
-      if (isSignedIn && _activeSessionId != null) {
-        await supabaseService.saveChatMessage(
+      ChatMessage botMsg;
+      if (_chatModule == ChatModule.contractAnalysis) {
+        botMsg = await ApiService.analyseContract(content);
+      } else {
+        botMsg = await ApiService.sendChat(
+          query: content,
+          module: _chatModule,
           sessionId: _activeSessionId!,
-          role: 'user',
-          content: content,
-        );
-        await supabaseService.saveChatMessage(
-          sessionId: _activeSessionId!,
-          role: 'bot',
-          content: reply.content,
+          history: history,
         );
       }
-    } catch (e) {
-      _messages.add(
-        ChatMessage.bot('Sorry, I could not get a response. Please try again.'),
+      _messages = [..._messages, botMsg];
+      await SupabaseService.saveChatMessage(
+        sessionId: _activeSessionId!,
+        role: 'bot',
+        content: botMsg.content,
+        sources: botMsg.sources.map((s) => {'title': s.title, 'section': s.section}).toList(),
       );
+    } catch (e) {
+      final errMsg = ChatMessage(
+        messageId: const Uuid().v4(),
+        role: 'bot',
+        content: 'Sorry, an error occurred. Please try again.',
+      );
+      _messages = [..._messages, errMsg];
     } finally {
       _chatLoading = false;
       notifyListeners();
     }
   }
 
-  // ── COL ──────────────────────────────────────────────────────
-  List<ColEvaluation> _colResults = [];
-  List<ColEvaluation> get colResults => _colResults;
-
-  bool _colLoading = false;
-  bool get colLoading => _colLoading;
-
   Future<void> evaluateCOL({
     required double grossSalary,
     required List<String> cities,
   }) async {
     _colLoading = true;
+    _colError = null;
     notifyListeners();
     try {
-      _colResults = await apiService.evaluateCOL(
-        grossSalary: grossSalary,
-        cities: cities,
-      );
-      if (isSignedIn && _colResults.isNotEmpty) {
-        await supabaseService.saveColEvaluation(_colResults.first);
+      _colResults = await ApiService.evaluateCOL(grossSalary: grossSalary, cities: cities);
+      if (_colResults.isNotEmpty) {
+        await SupabaseService.saveColEvaluation(_colResults.first);
       }
-    } catch (_) {
-      _colResults = [];
+    } catch (e) {
+      _colError = e.toString();
     } finally {
       _colLoading = false;
       notifyListeners();
     }
-  }
-
-  // ── Init ─────────────────────────────────────────────────────
-  Future<void> init() async {
-    final profile = await authService.getProfile();
-    setUser(profile);
-    if (isSignedIn) {
-      _predictions = await supabaseService.getPredictions();
-    }
-    _messages = _defaultMessages(_chatModule);
-    notifyListeners();
   }
 }

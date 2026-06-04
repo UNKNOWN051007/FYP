@@ -10,7 +10,7 @@ import os
 import joblib
 import numpy as np
 import pandas as pd
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from config import get_settings
@@ -132,7 +132,7 @@ async def predict_salary(req: PredictRequest):
 
 
 @router.post("/evaluate-offer")
-async def evaluate_offer(req: PredictRequest, offer: float):
+async def evaluate_offer(req: PredictRequest, offer: float = Query(..., gt=0, description="Offered salary in RM")):
     pred = await predict_salary(req)
     p50 = pred.salary_range.p50
     diff = offer - p50

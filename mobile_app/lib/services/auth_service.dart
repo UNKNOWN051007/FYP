@@ -2,86 +2,57 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_model.dart';
 
 class AuthService {
-  final SupabaseClient _supabase;
+  static SupabaseClient get _client => Supabase.instance.client;
 
-  AuthService(this._supabase);
-
-  User? get currentUser => _supabase.auth.currentUser;
-  bool get isSignedIn => currentUser != null;
-
-  Stream<AuthState> get authStateChanges =>
-      _supabase.auth.onAuthStateChange;
-
-  Future<UserModel> signUp({
+  static Future<UserModel> signUp({
     required String email,
     required String password,
     required String fullName,
   }) async {
-    final response = await _supabase.auth.signUp(
-      email: email,
-      password: password,
-      data: {'full_name': fullName},
-    );
-    if (response.user == null) {
-      throw const AuthException('Sign-up failed. Please try again.');
-    }
-    return UserModel(
-      userId: response.user!.id,
-      email: email,
-      fullName: fullName,
-    );
+    final res = await _client.auth.signUp(email: email, password: password);
+    final user = res.user;
+    if (user == null) throw Exception('Sign up failed');
+    await _client.from('user_profiles').upsert({
+      'user_id': user.id,
+      'full_name': fullName,
+      'language_pref': 'en',
+    });
+    return UserModel(userId: user.id, email: email, fullName: fullName);
   }
 
-  Future<UserModel> signIn({
+  static Future<UserModel> signIn({
     required String email,
     required String password,
   }) async {
-    final response = await _supabase.auth.signInWithPassword(
-      email: email,
-      password: password,
-    );
-    if (response.user == null) {
-      throw const AuthException('Invalid email or password.');
-    }
-    final profile = await _fetchProfile(response.user!.id);
-    return profile ??
-        UserModel(
-          userId: response.user!.id,
-          email: email,
-          fullName: response.user!.userMetadata?['full_name'] as String? ?? '',
-        );
+    final res = await _client.auth.signInWithPassword(email: email, password: password);
+    final user = res.user;
+    if (user == null) throw Exception('Sign in failed');
+    return await getProfile() ?? UserModel(userId: user.id, email: email, fullName: '');
   }
 
-  Future<void> signOut() => _supabase.auth.signOut();
-
-  Future<void> sendPasswordReset(String email) =>
-      _supabase.auth.resetPasswordForEmail(email);
-
-  Future<UserModel?> _fetchProfile(String userId) async {
-    try {
-      final data = await _supabase
-          .from('user_profiles')
-          .select()
-          .eq('user_id', userId)
-          .single();
-      return UserModel.fromJson({
-        ...data as Map<String, dynamic>,
-        'email': currentUser?.email ?? '',
-      });
-    } catch (_) {
-      return null;
-    }
+  static Future<void> signOut() async {
+    await _client.auth.signOut();
   }
 
-  Future<UserModel?> getProfile() async {
-    final user = currentUser;
+  static Future<UserModel?> getProfile() async {
+    final user = _client.auth.currentUser;
     if (user == null) return null;
-    return _fetchProfile(user.id);
+    final data = await _client
+        .from('user_profiles')
+        .select()
+        .eq('user_id', user.id)
+        .maybeSingle();
+    if (data == null) return null;
+    return UserModel.fromMap(data, user.email ?? '');
   }
 
-  Future<void> updateProfile(UserModel profile) async {
-    await _supabase
-        .from('user_profiles')
-        .upsert(profile.toJson());
+  static Future<void> updateProfile(UserModel profile) async {
+    await _client.from('user_profiles').upsert(profile.toMap());
   }
+
+  static User? get currentUser => _client.auth.currentUser;
+
+  static bool get isSignedIn => currentUser != null;
+
+  static Stream<AuthState> get authStateChanges => _client.auth.onAuthStateChange;
 }

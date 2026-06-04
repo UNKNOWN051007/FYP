@@ -3,7 +3,11 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file="../.env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file="../.env",
+        extra="ignore",
+        protected_namespaces=("settings_",),
+    )
 
     supabase_url: str = ""
     supabase_anon_key: str = ""

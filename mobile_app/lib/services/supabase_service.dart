@@ -1,113 +1,85 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/salary_prediction.dart';
 import '../models/col_evaluation.dart';
-import '../models/chat_message.dart';
 
 class SupabaseService {
-  final SupabaseClient _client;
+  static SupabaseClient get _client => Supabase.instance.client;
+  static String? get _userId => _client.auth.currentUser?.id;
 
-  SupabaseService(this._client);
-
-  String get _userId => _client.auth.currentUser!.id;
-
-  // ── Salary Predictions ───────────────────────────────────────
-
-  Future<void> savePrediction(SalaryPrediction pred) async {
+  static Future<void> savePrediction(SalaryPrediction p) async {
+    final uid = _userId;
+    if (uid == null) return;
     await _client.from('salary_predictions').insert({
-      'user_id': _userId,
-      'job_title': pred.jobTitle,
-      'industry': pred.industry,
-      'education_level': pred.educationLevel,
-      'years_experience': pred.yearsExperience,
-      'location': pred.location,
-      'predicted_p25': pred.predictedP25,
-      'predicted_p50': pred.predictedP50,
-      'predicted_p75': pred.predictedP75,
-      'confidence_label': pred.confidenceLabel,
-      if (pred.offerAmount != null) 'offer_amount': pred.offerAmount,
-      if (pred.offerStatus != null) 'offer_status': pred.offerStatus,
+      'user_id': uid,
+      'job_title': p.jobTitle,
+      'industry': p.industry,
+      'education_level': p.educationLevel,
+      'years_experience': p.yearsExperience,
+      'location': p.location,
+      'predicted_p25': p.predictedP25,
+      'predicted_p50': p.predictedP50,
+      'predicted_p75': p.predictedP75,
+      'confidence_label': p.confidenceLabel ?? 'medium',
     });
   }
 
-  Future<List<SalaryPrediction>> getPredictions({int limit = 20}) async {
+  static Future<List<SalaryPrediction>> getPredictions({int limit = 20}) async {
+    final uid = _userId;
+    if (uid == null) return [];
     final data = await _client
         .from('salary_predictions')
         .select()
-        .eq('user_id', _userId)
+        .eq('user_id', uid)
         .order('created_at', ascending: false)
         .limit(limit);
-    return (data as List)
-        .map((r) => SalaryPrediction.fromJson(r as Map<String, dynamic>))
+    return (data as List<dynamic>)
+        .map((m) => SalaryPrediction.fromDbMap(m as Map<String, dynamic>))
         .toList();
   }
 
-  // ── Chat Sessions & Messages ─────────────────────────────────
-
-  Future<String> createChatSession(String moduleType) async {
-    final data = await _client
-        .from('chat_sessions')
-        .insert({'user_id': _userId, 'module_type': moduleType})
-        .select('session_id')
-        .single();
-    return (data as Map<String, dynamic>)['session_id'] as String;
+  static Future<String> createChatSession(String moduleType) async {
+    final uid = _userId;
+    if (uid == null) throw Exception('Not signed in');
+    final data = await _client.from('chat_sessions').insert({
+      'user_id': uid,
+      'module_type': moduleType,
+    }).select().single();
+    return data['session_id'] as String;
   }
 
-  Future<void> saveChatMessage({
+  static Future<void> saveChatMessage({
     required String sessionId,
     required String role,
     required String content,
-    List<Map<String, dynamic>>? sources,
+    List<Map<String, dynamic>> sources = const [],
   }) async {
     await _client.from('chat_messages').insert({
       'session_id': sessionId,
       'role': role,
       'content': content,
-      if (sources != null) 'sources': sources,
+      'sources': sources,
     });
   }
 
-  Future<List<ChatMessage>> getChatMessages(String sessionId) async {
-    final data = await _client
-        .from('chat_messages')
-        .select()
-        .eq('session_id', sessionId)
-        .order('created_at');
-    return (data as List)
-        .map((r) => ChatMessage.fromJson(r as Map<String, dynamic>))
-        .toList();
-  }
-
-  // ── COL Evaluations ──────────────────────────────────────────
-
-  Future<void> saveColEvaluation(ColEvaluation eval) async {
+  static Future<void> saveColEvaluation(ColEvaluation e) async {
+    final uid = _userId;
+    if (uid == null) return;
     await _client.from('col_evaluations').insert({
-      'user_id': _userId,
-      'gross_salary': eval.grossSalary,
-      'epf_deduction': eval.epfDeduction,
-      'socso_deduction': eval.socsoDeduction,
-      'tax_deduction': eval.taxDeduction,
-      'net_salary': eval.netSalary,
-      'city': eval.city,
-      'rent': eval.rent,
-      'food': eval.food,
-      'transport': eval.transport,
-      'utilities': eval.utilities,
-      'healthcare': eval.healthcare,
-      'total_expenses': eval.totalExpenses,
-      'disposable_income': eval.disposableIncome,
-      'meets_living_wage': eval.meetsLivingWage,
+      'user_id': uid,
+      'gross_salary': e.grossSalary,
+      'city': e.city,
+      'epf_deduction': e.epfDeduction,
+      'socso_deduction': e.socsoDeduction,
+      'tax_deduction': e.taxDeduction,
+      'net_salary': e.netSalary,
+      'rent': e.rent,
+      'food': e.food,
+      'transport': e.transport,
+      'utilities': e.utilities,
+      'healthcare': e.healthcare,
+      'total_expenses': e.totalExpenses,
+      'disposable_income': e.disposableIncome,
+      'meets_living_wage': e.meetsLivingWage,
     });
-  }
-
-  Future<List<ColEvaluation>> getColEvaluations({int limit = 10}) async {
-    final data = await _client
-        .from('col_evaluations')
-        .select()
-        .eq('user_id', _userId)
-        .order('created_at', ascending: false)
-        .limit(limit);
-    return (data as List)
-        .map((r) => ColEvaluation.fromJson(r as Map<String, dynamic>))
-        .toList();
   }
 }

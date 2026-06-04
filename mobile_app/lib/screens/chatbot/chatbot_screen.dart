@@ -1,13 +1,13 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_colors.dart';
-import '../../models/chat_message.dart';
+import 'package:wagewise/app_localizations.dart';
 import '../../providers/app_provider.dart';
+import '../../models/chat_message.dart';
 import '../../widgets/common_widgets.dart';
 
 class ChatbotScreen extends StatefulWidget {
   const ChatbotScreen({super.key});
-
   @override
   State<ChatbotScreen> createState() => _ChatbotScreenState();
 }
@@ -15,13 +15,31 @@ class ChatbotScreen extends StatefulWidget {
 class _ChatbotScreenState extends State<ChatbotScreen> {
   final _inputCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
-  String? _coachScenario;
 
-  static const _tabs = [
-    _TabInfo('rights', 'Labour Rights', Icons.shield_outlined, AppColors.purple),
-    _TabInfo('coach', 'Negotiation', Icons.bolt_rounded, AppColors.teal),
-    _TabInfo('contract', 'Contract', Icons.description_outlined, AppColors.amber),
-  ];
+  static const _suggestions = {
+    ChatModule.labourRights: [
+      'What is my overtime entitlement?',
+      'How many days annual leave do I get?',
+      'Can my employer extend my probation?',
+    ],
+    ChatModule.negotiationCoach: [
+      'Help me negotiate a RM 4,500 offer',
+      'How do I ask for a raise?',
+      'Practice: HR gives me a lowball offer',
+    ],
+    ChatModule.contractAnalysis: [
+      'Review this probation clause: 6 months with extension',
+      'Is a 3-month notice period legal?',
+      'Analyse: no overtime pay clause',
+    ],
+  };
+
+  void _send() {
+    final text = _inputCtrl.text.trim();
+    if (text.isEmpty) return;
+    _inputCtrl.clear();
+    context.read<AppProvider>().sendMessage(text).then((_) => _scrollToBottom());
+  }
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -35,221 +53,106 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     });
   }
 
-  Future<void> _send() async {
-    final text = _inputCtrl.text.trim();
-    if (text.isEmpty) return;
-    _inputCtrl.clear();
-    await context.read<AppProvider>().sendMessage(text);
-    _scrollToBottom();
+  Color _moduleColor(ChatModule m) {
+    switch (m) {
+      case ChatModule.labourRights: return AppColors.purple;
+      case ChatModule.negotiationCoach: return AppColors.teal;
+      case ChatModule.contractAnalysis: return AppColors.amber;
+    }
   }
 
-  @override
-  void dispose() {
-    _inputCtrl.dispose();
-    _scrollCtrl.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
     final provider = context.watch<AppProvider>();
     final module = provider.chatModule;
-    final tab = _tabs.firstWhere((t) => t.key == module, orElse: () => _tabs[0]);
+    final color = _moduleColor(module);
+    final suggestions = _suggestions[module] ?? [];
 
-    return Column(
-      children: [
-        // Header
-        Padding(
-          padding: const EdgeInsets.fromLTRB(22, 20, 22, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14),
-                      color: AppColors.purple.withOpacity(0.15),
-                    ),
-                    child: const Icon(Icons.smart_toy_outlined,
-                        color: AppColors.purple, size: 20),
-                  ),
-                  const SizedBox(width: 10),
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('AI Labour Rights Chatbot',
-                          style: TextStyle(
-                              color: AppColors.text,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 17)),
-                      Text('Ask anything about Malaysian employment law',
-                          style: TextStyle(
-                              color: AppColors.muted, fontSize: 11)),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // Tab bar
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: AppColors.card,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  children: _tabs.map((t) {
-                    final isActive = module == t.key;
-                    return Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          context.read<AppProvider>().switchChatModule(t.key);
-                          setState(() => _coachScenario = null);
-                        },
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            color: isActive
-                                ? t.color.withOpacity(0.2)
-                                : Colors.transparent,
-                          ),
-                          child: Column(
-                            children: [
-                              Icon(t.icon,
-                                  size: 16,
-                                  color: isActive ? t.color : AppColors.dimmed),
-                              const SizedBox(height: 3),
-                              Text(t.label,
-                                  style: TextStyle(
-                                      color:
-                                          isActive ? t.color : AppColors.muted,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600)),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
-          ),
-        ),
-
-        // Suggested topics (rights tab)
-        if (module == 'rights' && provider.messages.length <= 1)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(22, 0, 22, 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return Scaffold(
+      backgroundColor: AppColors.bg,
+      appBar: AppBar(
+        title: Text(l.chatbotHeading),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            child: Row(
               children: [
-                const Text('Suggested Topics',
-                    style: TextStyle(color: AppColors.muted, fontSize: 12)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: const [
-                    'What is my EPF entitlement?',
-                    'Is my notice period legal?',
-                    'Overtime pay rights',
-                    'Maternity leave policy',
-                  ]
-                      .map((t) => _TopicChip(
-                            label: t,
-                            onTap: () {
-                              _inputCtrl.text = t;
-                              _send();
-                            },
-                          ))
-                      .toList(),
+                _TabBtn(
+                  label: l.labourRights,
+                  icon: Icons.shield_outlined,
+                  active: module == ChatModule.labourRights,
+                  color: AppColors.purple,
+                  onTap: () => context.read<AppProvider>().switchChatModule(ChatModule.labourRights),
+                ),
+                const SizedBox(width: 8),
+                _TabBtn(
+                  label: l.negotiation,
+                  icon: Icons.mic,
+                  active: module == ChatModule.negotiationCoach,
+                  color: AppColors.teal,
+                  onTap: () => context.read<AppProvider>().switchChatModule(ChatModule.negotiationCoach),
+                ),
+                const SizedBox(width: 8),
+                _TabBtn(
+                  label: l.contractReview,
+                  icon: Icons.description_outlined,
+                  active: module == ChatModule.contractAnalysis,
+                  color: AppColors.amber,
+                  onTap: () => context.read<AppProvider>().switchChatModule(ChatModule.contractAnalysis),
                 ),
               ],
             ),
           ),
-
-        // Negotiation coach scenario selector
-        if (module == 'coach' && _coachScenario == null)
+        ),
+      ),
+      body: Column(
+        children: [
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(22, 0, 22, 16),
-              child: Column(
-                children: [
-                  AppCard(
-                    color: const Color(0xFF0E2020),
-                    borderColor: AppColors.teal.withOpacity(0.2),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+            child: ListView(
+              controller: _scrollCtrl,
+              padding: const EdgeInsets.all(16),
+              children: [
+                if (provider.messages.isEmpty)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Try asking:', style: TextStyle(color: AppColors.muted, fontSize: 13)),
+                      const SizedBox(height: 8),
+                      ...suggestions.map((s) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: GestureDetector(
+                          onTap: () { _inputCtrl.text = s; _send(); },
+                          child: AppCard(
+                            color: color.withValues(alpha: 0.08),
+                            padding: const EdgeInsets.all(12),
+                            child: Text(s, style: TextStyle(color: color, fontSize: 13)),
+                          ),
+                        ),
+                      )),
+                    ],
+                  ),
+                ...provider.messages.map((msg) => _MessageBubble(message: msg, accentColor: color)),
+                if (provider.chatLoading)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Row(
                       children: [
-                        const Text('🤝',
-                            style: TextStyle(fontSize: 32)),
-                        const SizedBox(height: 8),
-                        Text(provider.messages.first.content,
-                            style: const TextStyle(
-                                color: AppColors.text,
-                                fontSize: 14,
-                                height: 1.6)),
+                        SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.muted)),
+                        SizedBox(width: 8),
+                        Text('Thinking...', style: TextStyle(color: AppColors.muted, fontSize: 13)),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  ...[
-                    _ScenarioCard(
-                      emoji: '⬇️',
-                      title: 'The Lowball Offer',
-                      desc: 'Practice responding to a below-market offer with confidence and data.',
-                      color: AppColors.teal,
-                      onTap: () {
-                        setState(() => _coachScenario = 'lowball');
-                        context.read<AppProvider>().sendMessage(
-                            'Start the lowball offer scenario. You are the HR and I am the candidate.');
-                        _scrollToBottom();
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    _ScenarioCard(
-                      emoji: '📈',
-                      title: 'Asking for a Raise',
-                      desc: 'Practice requesting a raise from your current employer.',
-                      color: AppColors.accent,
-                      onTap: () {
-                        setState(() => _coachScenario = 'raise');
-                        context.read<AppProvider>().sendMessage(
-                            'Start the asking for a raise scenario. You are my current manager.');
-                        _scrollToBottom();
-                      },
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          )
-        else ...[
-          // Messages
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollCtrl,
-              padding: const EdgeInsets.fromLTRB(22, 0, 22, 12),
-              itemCount: provider.messages.length + (provider.chatLoading ? 1 : 0),
-              itemBuilder: (_, i) {
-                if (i == provider.messages.length) {
-                  return const _TypingIndicator();
-                }
-                return _MessageBubble(message: provider.messages[i]);
-              },
+              ],
             ),
           ),
-          // Input
           Container(
-            padding: const EdgeInsets.fromLTRB(22, 10, 22, 12),
+            padding: const EdgeInsets.all(12),
             decoration: const BoxDecoration(
+              color: AppColors.card,
               border: Border(top: BorderSide(color: AppColors.border)),
             ),
             child: Row(
@@ -257,243 +160,116 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
                 Expanded(
                   child: TextField(
                     controller: _inputCtrl,
-                    style: const TextStyle(color: AppColors.text, fontSize: 13),
+                    maxLines: null,
+                    style: const TextStyle(color: AppColors.text),
                     decoration: InputDecoration(
-                      hintText: module == 'contract'
-                          ? 'Paste contract clause...'
-                          : 'Ask a question...',
-                      hintStyle:
-                          const TextStyle(color: AppColors.muted),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(22),
-                        borderSide:
-                            const BorderSide(color: AppColors.border),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(22),
-                        borderSide:
-                            const BorderSide(color: AppColors.border),
-                      ),
+                      hintText: l.typeMessage,
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
                     onSubmitted: (_) => _send(),
-                    maxLines: null,
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 GestureDetector(
-                  onTap: _send,
+                  onTap: provider.chatLoading ? null : _send,
                   child: Container(
-                    width: 44,
-                    height: 44,
+                    width: 42, height: 42,
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: module == 'coach'
-                            ? [AppColors.teal, const Color(0xFF0EA5E9)]
-                            : module == 'contract'
-                                ? [AppColors.amber, const Color(0xFFF97316)]
-                                : [AppColors.purple, const Color(0xFF6366F1)],
-                      ),
+                      gradient: LinearGradient(colors: [color, color.withValues(alpha: 0.7)]),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.send_rounded,
-                        color: Colors.white, size: 18),
+                    child: const Icon(Icons.send, color: Colors.white, size: 18),
                   ),
                 ),
               ],
             ),
           ),
         ],
-      ],
-    );
-  }
-}
-
-class _TabInfo {
-  final String key;
-  final String label;
-  final IconData icon;
-  final Color color;
-  const _TabInfo(this.key, this.label, this.icon, this.color);
-}
-
-class _TopicChip extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-
-  const _TopicChip({required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: AppColors.purple.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(20),
-            border:
-                Border.all(color: AppColors.purple.withOpacity(0.3), width: 1),
-          ),
-          child: Text(label,
-              style: const TextStyle(
-                  color: AppColors.purple, fontSize: 11, fontWeight: FontWeight.w500)),
-        ),
-      );
-}
-
-class _ScenarioCard extends StatelessWidget {
-  final String emoji;
-  final String title;
-  final String desc;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _ScenarioCard({
-    required this.emoji,
-    required this.title,
-    required this.desc,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
-        child: AppCard(
-          borderColor: color.withOpacity(0.2),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  color: color.withOpacity(0.15),
-                ),
-                child: Center(
-                    child: Text(emoji, style: const TextStyle(fontSize: 22))),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title,
-                        style: const TextStyle(
-                            color: AppColors.text,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14)),
-                    const SizedBox(height: 4),
-                    Text(desc,
-                        style: const TextStyle(
-                            color: AppColors.muted, fontSize: 12, height: 1.4)),
-                  ],
-                ),
-              ),
-              const Icon(Icons.chevron_right,
-                  color: AppColors.dimmed, size: 20),
-            ],
-          ),
-        ),
-      );
-}
-
-class _MessageBubble extends StatelessWidget {
-  final ChatMessage message;
-
-  const _MessageBubble({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    final isBot = message.isBot;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Row(
-        mainAxisAlignment:
-            isBot ? MainAxisAlignment.start : MainAxisAlignment.end,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (isBot) ...[
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: AppColors.purple.withOpacity(0.2),
-              ),
-              child:
-                  const Center(child: Text('🤖', style: TextStyle(fontSize: 14))),
-            ),
-            const SizedBox(width: 10),
-          ],
-          Flexible(
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                gradient: isBot
-                    ? null
-                    : const LinearGradient(
-                        colors: [AppColors.accent, Color(0xFF6366F1)]),
-                color: isBot ? AppColors.card : null,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(16),
-                  topRight: const Radius.circular(16),
-                  bottomLeft: Radius.circular(isBot ? 4 : 16),
-                  bottomRight: Radius.circular(isBot ? 16 : 4),
-                ),
-                border: isBot
-                    ? Border.all(color: AppColors.border, width: 1)
-                    : null,
-              ),
-              child: Text(
-                message.content,
-                style: const TextStyle(
-                    color: AppColors.text, fontSize: 13, height: 1.6),
-              ),
-            ),
-          ),
-          if (!isBot) const SizedBox(width: 10),
-        ],
       ),
     );
   }
 }
 
-class _TypingIndicator extends StatelessWidget {
-  const _TypingIndicator();
+class _TabBtn extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool active;
+  final Color color;
+  final VoidCallback onTap;
+  const _TabBtn({required this.label, required this.icon, required this.active, required this.color, required this.onTap});
 
   @override
-  Widget build(BuildContext context) => Row(
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: active ? color.withValues(alpha: 0.15) : Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: active ? color : AppColors.dimmed),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              color: AppColors.purple.withOpacity(0.2),
-            ),
-            child:
-                const Center(child: Text('🤖', style: TextStyle(fontSize: 14))),
-          ),
-          const SizedBox(width: 10),
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: AppColors.card,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
-                bottomRight: Radius.circular(16),
-                bottomLeft: Radius.circular(4),
-              ),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: const Text('Thinking…',
-                style: TextStyle(color: AppColors.muted, fontSize: 13)),
-          ),
+          Icon(icon, color: active ? color : AppColors.dimmed, size: 14),
+          const SizedBox(width: 4),
+          Text(label, style: TextStyle(color: active ? color : AppColors.dimmed, fontSize: 11, fontWeight: FontWeight.w600)),
         ],
-      );
+      ),
+    ),
+  );
 }
+
+class _MessageBubble extends StatelessWidget {
+  final ChatMessage message;
+  final Color accentColor;
+  const _MessageBubble({required this.message, required this.accentColor});
+
+  @override
+  Widget build(BuildContext context) {
+    if (message.isUser) {
+      return Align(
+        alignment: Alignment.centerRight,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 8, left: 60),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(colors: AppColors.gradientBlue),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Text(message.content, style: const TextStyle(color: Colors.white, fontSize: 14)),
+        ),
+      );
+    }
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8, right: 60),
+        child: AppCard(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(children: [
+                Text('🤖 ', style: TextStyle(fontSize: 14)),
+                Expanded(child: SizedBox()),
+              ]),
+              const SizedBox(height: 4),
+              Text(message.content, style: const TextStyle(color: AppColors.text, fontSize: 14, height: 1.5)),
+              if (message.sources.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                const Text('Sources:', style: TextStyle(color: AppColors.muted, fontSize: 11, fontWeight: FontWeight.w600)),
+                ...message.sources.map((s) => Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text('• ${s.title} – ${s.section}', style: const TextStyle(color: AppColors.dimmed, fontSize: 11)),
+                )),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+

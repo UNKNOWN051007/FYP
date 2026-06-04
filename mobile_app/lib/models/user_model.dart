@@ -17,39 +17,37 @@ class UserModel {
     this.fieldOfStudy,
   });
 
-  factory UserModel.fromJson(Map<String, dynamic> json) => UserModel(
-        userId: json['user_id'] as String,
-        email: json['email'] as String? ?? '',
-        fullName: json['full_name'] as String? ?? '',
-        languagePref: json['language_pref'] as String? ?? 'en',
-        salaryGoal: (json['salary_goal'] as num?)?.toDouble(),
-        education: json['education'] as String?,
-        fieldOfStudy: json['field_of_study'] as String?,
-      );
+  factory UserModel.fromMap(Map<String, dynamic> map, String email) => UserModel(
+    userId: map['user_id'] as String,
+    email: email,
+    fullName: map['full_name'] as String,
+    languagePref: (map['language_pref'] as String?) ?? 'en',
+    salaryGoal: (map['salary_goal'] as num?)?.toDouble(),
+    education: map['education'] as String?,
+    fieldOfStudy: map['field_of_study'] as String?,
+  );
 
-  Map<String, dynamic> toJson() => {
-        'user_id': userId,
-        'full_name': fullName,
-        'language_pref': languagePref,
-        if (salaryGoal != null) 'salary_goal': salaryGoal,
-        if (education != null) 'education': education,
-        if (fieldOfStudy != null) 'field_of_study': fieldOfStudy,
-      };
+  Map<String, dynamic> toMap() => {
+    'user_id': userId,
+    'full_name': fullName,
+    'language_pref': languagePref,
+    if (salaryGoal != null) 'salary_goal': salaryGoal,
+    if (education != null) 'education': education,
+    if (fieldOfStudy != null) 'field_of_study': fieldOfStudy,
+  };
 
   UserModel copyWith({
-    String? fullName,
     String? languagePref,
     double? salaryGoal,
     String? education,
     String? fieldOfStudy,
-  }) =>
-      UserModel(
-        userId: userId,
-        email: email,
-        fullName: fullName ?? this.fullName,
-        languagePref: languagePref ?? this.languagePref,
-        salaryGoal: salaryGoal ?? this.salaryGoal,
-        education: education ?? this.education,
-        fieldOfStudy: fieldOfStudy ?? this.fieldOfStudy,
-      );
+  }) => UserModel(
+    userId: userId,
+    email: email,
+    fullName: fullName,
+    languagePref: languagePref ?? this.languagePref,
+    salaryGoal: salaryGoal ?? this.salaryGoal,
+    education: education ?? this.education,
+    fieldOfStudy: fieldOfStudy ?? this.fieldOfStudy,
+  );
 }

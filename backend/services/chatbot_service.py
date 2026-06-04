@@ -5,6 +5,7 @@ Legal knowledge base: Employment Act 1955, Industrial Relations Act 1967.
 """
 
 import os
+import logging
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 import google.generativeai as genai
@@ -12,6 +13,8 @@ import chromadb
 from chromadb.utils import embedding_functions
 
 from config import get_settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 settings = get_settings()
@@ -114,6 +117,7 @@ def _retrieve_context(query: str, n_results: int = 5) -> tuple[str, list[Source]
         ]
         return context, sources
     except Exception:
+        logger.exception("ChromaDB retrieval failed")
         return "", []
 
 
@@ -154,11 +158,9 @@ async def chat(req: ChatRequest):
     try:
         response = model.generate_content(prompt)
         answer = response.text
-    except Exception as exc:
-        answer = (
-            "I'm unable to generate a response at the moment. "
-            f"Please try again later. (Error: {exc})"
-        )
+    except Exception:
+        logger.exception("Gemini generation failed")
+        answer = "I'm unable to generate a response at the moment. Please try again later."
 
     return ChatResponse(answer=answer, sources=sources, module=req.module)
 

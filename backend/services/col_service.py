@@ -62,10 +62,7 @@ def calc_epf(gross: float) -> float:
 
 def calc_socso(gross: float) -> float:
     """SOCSO (PERKESO) employee contribution – capped at RM 29.75."""
-    if gross >= 4000:
-        return 19.75
-    rate = 0.005
-    return round(min(gross * rate, 29.75), 2)
+    return round(min(gross * 0.005, 29.75), 2)
 
 
 def calc_income_tax(gross: float) -> float:

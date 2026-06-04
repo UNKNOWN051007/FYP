@@ -1,25 +1,39 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../config/env.dart';
 import '../models/salary_prediction.dart';
-import '../models/col_evaluation.dart';
 import '../models/chat_message.dart';
+import '../models/col_evaluation.dart';
+
+class ApiException implements Exception {
+  final int statusCode;
+  final String message;
+  const ApiException(this.statusCode, this.message);
+  @override
+  String toString() => 'ApiException($statusCode): $message';
+}
 
 class ApiService {
-  final String baseUrl;
+  static String get _base => Env.backendUrl;
 
-  ApiService({required this.baseUrl});
+  static Future<bool> isHealthy() async {
+    try {
+      final res = await http.get(Uri.parse('$_base/health')).timeout(const Duration(seconds: 5));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
 
-  // ── Salary Intelligence ──────────────────────────────────────
-
-  Future<SalaryPrediction> predictSalary({
+  static Future<SalaryPrediction> predictSalary({
     required String jobTitle,
     required String industry,
     required String educationLevel,
     required int yearsExperience,
     required String location,
   }) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/predict'),
+    final res = await http.post(
+      Uri.parse('$_base/predict'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         'job_title': jobTitle,
@@ -29,132 +43,95 @@ class ApiService {
         'location': location,
       }),
     );
-    _checkStatus(response);
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final range = data['salary_range'] as Map<String, dynamic>;
-    return SalaryPrediction(
-      jobTitle: jobTitle,
-      industry: industry,
-      educationLevel: educationLevel,
-      yearsExperience: yearsExperience,
-      location: location,
-      predictedP25: (range['p25'] as num).toDouble(),
-      predictedP50: (range['p50'] as num).toDouble(),
-      predictedP75: (range['p75'] as num).toDouble(),
-      confidenceLabel: range['confidence'] as String?,
-    );
+    if (res.statusCode != 200) throw ApiException(res.statusCode, 'Prediction failed');
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    return SalaryPrediction.fromApiResponse({
+      ...data,
+      'job_title': jobTitle,
+      'industry': industry,
+      'education_level': educationLevel,
+      'years_experience': yearsExperience,
+      'location': location,
+    });
   }
 
-  // ── AI Chatbot ───────────────────────────────────────────────
+  static Future<Map<String, dynamic>> evaluateOffer({
+    required String jobTitle,
+    required String industry,
+    required String educationLevel,
+    required int yearsExperience,
+    required String location,
+    required double offer,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$_base/predict/evaluate-offer?offer=${offer.toStringAsFixed(0)}'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'job_title': jobTitle,
+        'industry': industry,
+        'education_level': educationLevel,
+        'years_experience': yearsExperience,
+        'location': location,
+      }),
+    );
+    if (res.statusCode != 200) throw ApiException(res.statusCode, 'Offer evaluation failed');
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
 
-  Future<ChatMessage> sendChat({
+  static Future<ChatMessage> sendChat({
     required String query,
-    required String module,
-    String? sessionId,
+    required ChatModule module,
+    required String sessionId,
     List<Map<String, String>> history = const [],
   }) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/chat'),
+    final res = await http.post(
+      Uri.parse('$_base/chat'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         'query': query,
-        'module': module,
-        if (sessionId != null) 'session_id': sessionId,
+        'module': module.apiValue,
+        'session_id': sessionId,
         'history': history,
       }),
     );
-    _checkStatus(response);
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    return ChatMessage.bot(
-      data['answer'] as String,
-      sources: (data['sources'] as List<dynamic>? ?? [])
-          .map((s) => ChatSource.fromJson(s as Map<String, dynamic>))
-          .toList(),
-    );
+    if (res.statusCode != 200) throw ApiException(res.statusCode, 'Chat failed');
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    return ChatMessage.fromApiResponse(data, DateTime.now().millisecondsSinceEpoch.toString());
   }
 
-  Future<ChatMessage> analyseContract(String clause) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/chat/contract'),
+  static Future<ChatMessage> analyseContract(String clause) async {
+    final res = await http.post(
+      Uri.parse('$_base/chat/contract'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'clause': clause}),
     );
-    _checkStatus(response);
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    return ChatMessage.bot(data['answer'] as String);
+    if (res.statusCode != 200) throw ApiException(res.statusCode, 'Contract analysis failed');
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    return ChatMessage.fromApiResponse(data, DateTime.now().millisecondsSinceEpoch.toString());
   }
 
-  // ── Cost of Living ───────────────────────────────────────────
-
-  Future<List<ColEvaluation>> evaluateCOL({
+  static Future<List<ColEvaluation>> evaluateCOL({
     required double grossSalary,
     required List<String> cities,
   }) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/col'),
+    final res = await http.post(
+      Uri.parse('$_base/col'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'gross_salary': grossSalary,
-        'cities': cities,
-      }),
+      body: jsonEncode({'gross_salary': grossSalary, 'cities': cities}),
     );
-    _checkStatus(response);
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final citiesData = data['cities'] as List<dynamic>;
-    return citiesData
-        .map((c) => ColEvaluation.fromJson({
-              ...c as Map<String, dynamic>,
-              'gross_salary': grossSalary,
-            }))
-        .toList();
+    if (res.statusCode != 200) throw ApiException(res.statusCode, 'COL evaluation failed');
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final cityList = data['cities'] as List<dynamic>? ?? [];
+    return cityList.map((c) => ColEvaluation.fromApiResponse({
+      ...c as Map<String, dynamic>,
+      'gross_salary': grossSalary,
+    })).toList();
   }
 
-  Future<List<String>> getAvailableCities() async {
-    final response = await http.get(Uri.parse('$baseUrl/col/cities'));
-    _checkStatus(response);
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    return List<String>.from(data['cities'] as List);
+  static Future<List<String>> getAvailableCities() async {
+    final res = await http.get(Uri.parse('$_base/col/cities'));
+    if (res.statusCode != 200) throw ApiException(res.statusCode, 'Failed to get cities');
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    return List<String>.from(data['cities'] as List<dynamic>? ?? []);
   }
-
-  // ── Health ───────────────────────────────────────────────────
-
-  Future<bool> isHealthy() async {
-    try {
-      final response =
-          await http.get(Uri.parse('$baseUrl/health')).timeout(
-                const Duration(seconds: 5),
-              );
-      return response.statusCode == 200;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  void _checkStatus(http.Response response) {
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ApiException(
-        statusCode: response.statusCode,
-        message: _extractMessage(response.body),
-      );
-    }
-  }
-
-  String _extractMessage(String body) {
-    try {
-      final data = jsonDecode(body) as Map<String, dynamic>;
-      return data['detail'] as String? ?? 'Unknown error';
-    } catch (_) {
-      return body;
-    }
-  }
-}
-
-class ApiException implements Exception {
-  final int statusCode;
-  final String message;
-
-  const ApiException({required this.statusCode, required this.message});
-
-  @override
-  String toString() => 'ApiException($statusCode): $message';
 }

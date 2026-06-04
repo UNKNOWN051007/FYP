@@ -1,338 +1,174 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_colors.dart';
+import 'package:wagewise/app_localizations.dart';
 import '../../providers/app_provider.dart';
 import '../../widgets/common_widgets.dart';
 
 class HomeScreen extends StatelessWidget {
-  final void Function(int) onNavigate;
+  const HomeScreen({super.key});
 
-  const HomeScreen({super.key, required this.onNavigate});
+  static const _tips = [
+    "Research the market salary before any interview.",
+    "EPF (11%) and SOCSO (0.5%) are mandatory deductions in Malaysia.",
+    "Probation period cannot legally exceed 6 months.",
+    "You are entitled to 8 days annual leave in your first year.",
+    "Overtime pay must be at least 1.5× your hourly rate.",
+    "Always negotiate — the first offer is rarely the best.",
+    "Minimum wage in Malaysia is RM 1,700/month.",
+  ];
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
     final provider = context.watch<AppProvider>();
     final user = provider.user;
-    final firstName = user?.fullName.split(' ').first ?? 'there';
+    final tip = _tips[DateTime.now().day % _tips.length];
+    final recentPredictions = provider.predictions.take(2).toList();
+    final initials = user != null && user.fullName.isNotEmpty
+        ? user.fullName.trim().split(' ').map((w) => w[0]).take(2).join().toUpperCase()
+        : 'WW';
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Hero header ──────────────────────────────────────
+    return Scaffold(
+      backgroundColor: AppColors.bg,
+      appBar: AppBar(
+        backgroundColor: AppColors.bg,
+        elevation: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('${l.greeting}, ${user?.fullName.split(' ').first ?? 'there'}!',
+                style: const TextStyle(color: AppColors.text, fontSize: 18, fontWeight: FontWeight.w700)),
+            Text('WageWise', style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+          ],
+        ),
+        actions: [
           Container(
-            padding: const EdgeInsets.fromLTRB(22, 20, 22, 0),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xFF0A1628), AppColors.bg],
-              ),
+            margin: const EdgeInsets.only(right: 16),
+            width: 40, height: 40,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: AppColors.gradientBlue),
+              borderRadius: BorderRadius.circular(20),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Good morning,',
-                            style: TextStyle(
-                                color: AppColors.muted, fontSize: 13)),
-                        Text('$firstName 👋',
-                            style: const TextStyle(
-                                color: AppColors.text,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 20)),
-                        const Text('Ready to navigate your fair wage?',
-                            style: TextStyle(
-                                color: AppColors.muted, fontSize: 12)),
-                      ],
-                    ),
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: const LinearGradient(
-                            colors: [AppColors.accent, AppColors.teal]),
-                        boxShadow: [
-                          BoxShadow(
-                              color: AppColors.accentGlow, blurRadius: 16)
-                        ],
-                      ),
-                      child: Center(
-                        child: Text(
-                          (user?.fullName.isNotEmpty == true)
-                              ? user!.fullName
-                                  .split(' ')
-                                  .map((w) => w[0])
-                                  .take(2)
-                                  .join()
-                                  .toUpperCase()
-                              : 'WW',
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 14),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                // Market insight card
-                _MarketInsightCard(),
-                const SizedBox(height: 20),
-              ],
-            ),
-          ),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 22),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ── Quick actions ────────────────────────────
-                const Text('Quick Actions',
-                    style: TextStyle(
-                        color: AppColors.text,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16)),
-                const SizedBox(height: 14),
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 1.35,
-                  children: [
-                    _ActionCard(
-                      icon: Icons.bar_chart_rounded,
-                      label: 'Salary Check',
-                      sub: 'Know your market value',
-                      color: AppColors.accent,
-                      onTap: () => onNavigate(1),
-                    ),
-                    _ActionCard(
-                      icon: Icons.bolt_rounded,
-                      label: 'Negotiate',
-                      sub: 'Practice with AI coach',
-                      color: AppColors.teal,
-                      onTap: () => onNavigate(2),
-                    ),
-                    _ActionCard(
-                      icon: Icons.shield_outlined,
-                      label: 'My Rights',
-                      sub: 'Employment Act guide',
-                      color: AppColors.purple,
-                      onTap: () => onNavigate(2),
-                    ),
-                    _ActionCard(
-                      icon: Icons.map_outlined,
-                      label: 'Living Cost',
-                      sub: 'Compare cities',
-                      color: AppColors.amber,
-                      onTap: () => onNavigate(3),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                // ── Tip of the day ───────────────────────────
-                AppCard(
-                  color: const Color(0xFF0E1E0E),
-                  borderColor: AppColors.green.withOpacity(0.3),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          color: AppColors.green.withOpacity(0.15),
-                        ),
-                        child: const Center(
-                          child: Icon(Icons.info_outline,
-                              color: AppColors.green, size: 18),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Tip of the Day',
-                                style: TextStyle(
-                                    color: AppColors.green,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 12)),
-                            SizedBox(height: 3),
-                            Text(
-                              'Always negotiate. 85% of employers expect it.',
-                              style: TextStyle(
-                                  color: AppColors.text,
-                                  fontSize: 13,
-                                  height: 1.5),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                // ── Recent activity ──────────────────────────
-                if (provider.predictions.isNotEmpty) ...[
-                  const Text('Recent',
-                      style: TextStyle(
-                          color: AppColors.text,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16)),
-                  const SizedBox(height: 12),
-                  ...provider.predictions.take(2).map(
-                        (p) => Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: _RecentCard(
-                            icon: Icons.bar_chart_rounded,
-                            label: '${p.jobTitle} – ${p.location}',
-                            sub:
-                                'Predicted: RM ${p.predictedP25?.toStringAsFixed(0)}–${p.predictedP75?.toStringAsFixed(0)}',
-                            color: AppColors.accent,
-                            tag: 'Salary',
-                          ),
-                        ),
-                      ),
-                ],
-              ],
-            ),
+            alignment: Alignment.center,
+            child: Text(initials, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
           ),
         ],
       ),
-    );
-  }
-}
-
-class _MarketInsightCard extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      color: const Color(0xFF0E2450),
-      borderColor: AppColors.accent.withOpacity(0.2),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Market Insight',
-              style: TextStyle(color: AppColors.muted, fontSize: 12)),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Avg. Fresh Grad Salary',
-                      style: TextStyle(color: AppColors.muted, fontSize: 11)),
-                  const Text('RM 3,800',
-                      style: TextStyle(
-                          color: AppColors.text,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 26)),
-                  AppTag(label: 'IT / Software', color: AppColors.accent),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  const Text('Your Target',
-                      style: TextStyle(color: AppColors.muted, fontSize: 11)),
-                  const Text('RM 4,500',
-                      style: TextStyle(
-                          color: AppColors.green,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 22)),
-                  AppTag(label: '+18.4%', color: AppColors.green),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: 0.78,
-              backgroundColor: Colors.white.withOpacity(0.08),
-              valueColor:
-                  const AlwaysStoppedAnimation<Color>(AppColors.accent),
-              minHeight: 6,
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('RM 2,500',
-                  style: TextStyle(color: AppColors.dimmed, fontSize: 10)),
-              Text('RM 6,000+',
-                  style: TextStyle(color: AppColors.dimmed, fontSize: 10)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String sub;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _ActionCard({
-    required this.icon,
-    required this.label,
-    required this.sub,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AppCard(
-        color: AppColors.cardAlt,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
-                color: color.withOpacity(0.15),
-                border: Border.all(color: color.withOpacity(0.2), width: 1),
+            // Market Insight card
+            AppCard(
+              color: AppColors.cardAlt,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(l.marketInsight, style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+                      AppTag(label: '+18.4% YoY', color: AppColors.green),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(l.avgFreshGrad, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+                  const SizedBox(height: 4),
+                  const Text('RM 3,800', style: TextStyle(color: AppColors.text, fontSize: 28, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 12),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: 0.72,
+                      backgroundColor: AppColors.border,
+                      valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accent),
+                      minHeight: 6,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text('Target: RM 4,500', style: TextStyle(color: AppColors.dimmed, fontSize: 11)),
+                ],
               ),
-              child: Icon(icon, color: color, size: 20),
             ),
-            const SizedBox(height: 10),
-            Text(label,
-                style: const TextStyle(
-                    color: AppColors.text,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13)),
-            const SizedBox(height: 2),
-            Text(sub,
-                style: const TextStyle(
-                    color: AppColors.muted, fontSize: 11, height: 1.4),
-                maxLines: 2),
+            const SizedBox(height: 20),
+
+            // Quick Actions
+            SectionHeader(l.quickActions),
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 2.2,
+              children: [
+                _ActionCard(label: l.salaryCheck, icon: Icons.bar_chart, color: AppColors.accent),
+                _ActionCard(label: l.negotiate, icon: Icons.mic, color: AppColors.teal),
+                _ActionCard(label: l.myRights, icon: Icons.shield_outlined, color: AppColors.purple),
+                _ActionCard(label: l.livingCost, icon: Icons.calculate_outlined, color: AppColors.amber),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // Tip of the Day
+            SectionHeader(l.tipOfDay),
+            AppCard(
+              color: AppColors.accent.withValues(alpha: 0.1),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.accent.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.lightbulb_outline, color: AppColors.accent, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(tip, style: const TextStyle(color: AppColors.text, fontSize: 13, height: 1.5))),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Recent Predictions
+            SectionHeader(l.recentPredictions),
+            if (recentPredictions.isEmpty)
+              AppCard(
+                child: Center(
+                  child: Text('No predictions yet. Try the Salary tab!', style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+                ),
+              )
+            else
+              ...recentPredictions.map((p) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: AppCard(
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40, height: 40,
+                        decoration: BoxDecoration(color: AppColors.accent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
+                        child: const Icon(Icons.trending_up, color: AppColors.accent, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(p.jobTitle, style: const TextStyle(color: AppColors.text, fontWeight: FontWeight.w600, fontSize: 14)),
+                            Text(p.location, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+                          ],
+                        ),
+                      ),
+                      Text('RM ${p.predictedP50?.toStringAsFixed(0) ?? '-'}',
+                          style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.w700, fontSize: 14)),
+                    ],
+                  ),
+                ),
+              )),
+            const SizedBox(height: 80),
           ],
         ),
       ),
@@ -340,54 +176,26 @@ class _ActionCard extends StatelessWidget {
   }
 }
 
-class _RecentCard extends StatelessWidget {
-  final IconData icon;
+class _ActionCard extends StatelessWidget {
   final String label;
-  final String sub;
+  final IconData icon;
   final Color color;
-  final String tag;
 
-  const _RecentCard({
-    required this.icon,
-    required this.label,
-    required this.sub,
-    required this.color,
-    required this.tag,
-  });
+  const _ActionCard({required this.label, required this.icon, required this.color});
 
   @override
   Widget build(BuildContext context) {
     return AppCard(
+      padding: const EdgeInsets.all(12),
+      color: color.withValues(alpha: 0.1),
       child: Row(
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              color: color.withOpacity(0.15),
-            ),
-            child: Icon(icon, color: color, size: 19),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label,
-                    style: const TextStyle(
-                        color: AppColors.text,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13)),
-                Text(sub,
-                    style: const TextStyle(
-                        color: AppColors.muted, fontSize: 12)),
-              ],
-            ),
-          ),
-          AppTag(label: tag, color: color),
+          Icon(icon, color: color, size: 22),
+          const SizedBox(width: 8),
+          Expanded(child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 13))),
         ],
       ),
     );
   }
 }
+

@@ -1,389 +1,239 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_colors.dart';
+import 'package:wagewise/app_localizations.dart';
 import '../../providers/app_provider.dart';
 import '../../widgets/common_widgets.dart';
-import '../auth/login_screen.dart';
-
-// Defined at file scope so ProfileScreen can reference it without forward issues.
-class _LangOption {
-  final String code;
-  final String label;
-  const _LangOption(this.code, this.label);
-}
-
-const _kLangs = [
-  _LangOption('en', 'English'),
-  _LangOption('ms', 'Bahasa Malaysia'),
-  _LangOption('zh', '中文'),
-  _LangOption('ta', 'தமிழ்'),
-];
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
     final provider = context.watch<AppProvider>();
     final user = provider.user;
-    final nameParts = (user?.fullName ?? '').split(' ');
-    final initials = nameParts.length >= 2
-        ? '${nameParts[0][0]}${nameParts[1][0]}'.toUpperCase()
-        : nameParts.isNotEmpty && nameParts[0].isNotEmpty
-            ? nameParts[0][0].toUpperCase()
-            : 'WW';
+    final initials = user != null && user.fullName.isNotEmpty
+        ? user.fullName.trim().split(' ').map((w) => w[0]).take(2).join().toUpperCase()
+        : 'WW';
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(22, 20, 22, 16),
-      child: Column(
-        children: [
-          _AvatarSection(initials: initials, fullName: user?.fullName ?? 'Guest'),
-          const SizedBox(height: 20),
-          _StatsRow(provider: provider),
-          const SizedBox(height: 14),
-          _LangSwitcher(provider: provider),
-          const SizedBox(height: 14),
-          _SettingsTile(
-            icon: Icons.description_outlined,
-            label: 'Saved Reports',
-            sub: '${provider.predictions.length} reports',
-            color: AppColors.accent,
-          ),
-          _SettingsTile(
-            icon: Icons.notifications_outlined,
-            label: 'Notifications',
-            sub: 'On',
-            color: AppColors.amber,
-          ),
-          _SettingsTile(
-            icon: Icons.shield_outlined,
-            label: 'Privacy',
-            sub: 'Data encrypted',
-            color: AppColors.green,
-          ),
-          _SettingsTile(
-            icon: Icons.info_outline,
-            label: 'About WageWise',
-            sub: 'v1.0 · TAR UMT FYP 2026',
-            color: AppColors.muted,
-          ),
-          const SizedBox(height: 6),
-          _SignOutButton(provider: provider),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Avatar ─────────────────────────────────────────────────────────────────
-
-class _AvatarSection extends StatelessWidget {
-  final String initials;
-  final String fullName;
-  const _AvatarSection({required this.initials, required this.fullName});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          width: 80,
-          height: 80,
-          decoration: const BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              colors: [AppColors.accent, AppColors.teal],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.accentGlow,
-                blurRadius: 32,
-                spreadRadius: 4,
-              ),
-            ],
-          ),
-          child: Center(
-            child: Text(
-              initials,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 28,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          fullName,
-          style: const TextStyle(
-            color: AppColors.text,
-            fontWeight: FontWeight.w700,
-            fontSize: 20,
-          ),
-        ),
-        const Text(
-          'Bachelor of Software Eng.',
-          style: TextStyle(color: AppColors.muted, fontSize: 13),
-        ),
-        const Text(
-          'TAR UMT, Kuala Lumpur',
-          style: TextStyle(color: AppColors.dimmed, fontSize: 12),
-        ),
-        const SizedBox(height: 12),
-        const Wrap(
-          spacing: 8,
+    return Scaffold(
+      backgroundColor: AppColors.bg,
+      appBar: AppBar(title: Text(l.profileHeading)),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
           children: [
-            AppTag(label: 'Final Year Student', color: AppColors.accent),
-            AppTag(label: 'IT / CS', color: AppColors.teal),
+            // Avatar section
+            AppCard(
+              child: Column(
+                children: [
+                  Container(
+                    width: 80, height: 80,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(colors: AppColors.gradientBlue),
+                      borderRadius: BorderRadius.circular(40),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(initials, style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800)),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(user?.fullName ?? 'Guest', style: const TextStyle(color: AppColors.text, fontSize: 20, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 4),
+                  Text(user?.email ?? '', style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+                  const SizedBox(height: 12),
+                  const Wrap(
+                    spacing: 8,
+                    children: [
+                      AppTag(label: 'Final Year Student', color: AppColors.accent),
+                      AppTag(label: 'IT / CS', color: AppColors.teal),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Stats
+            Row(
+              children: [
+                _StatCard(
+                  title: 'Salary Goal',
+                  value: user?.salaryGoal != null ? 'RM ${user!.salaryGoal!.toStringAsFixed(0)}' : 'Not set',
+                  color: AppColors.accent,
+                ),
+                const SizedBox(width: 8),
+                _StatCard(title: 'Predictions', value: provider.predictions.length.toString(), color: AppColors.teal),
+                const SizedBox(width: 8),
+                _StatCard(title: 'Saved', value: '0', color: AppColors.purple),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Language
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SectionHeader(l.language),
+                  Row(
+                    children: [
+                      _LangBtn(label: l.english, code: 'en', current: provider.language),
+                      const SizedBox(width: 8),
+                      _LangBtn(label: l.bahasa, code: 'ms', current: provider.language),
+                      const SizedBox(width: 8),
+                      _LangBtn(label: l.chinese, code: 'zh', current: provider.language),
+                      const SizedBox(width: 8),
+                      _LangBtn(label: l.tamil, code: 'ta', current: provider.language),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Settings
+            AppCard(
+              child: Column(
+                children: [
+                  _SettingRow(
+                    icon: Icons.bookmark_border,
+                    label: 'Saved Reports',
+                    trailing: const Text('0', style: TextStyle(color: AppColors.muted)),
+                  ),
+                  const Divider(color: AppColors.border),
+                  _SettingRow(
+                    icon: Icons.notifications_outlined,
+                    label: 'Notifications',
+                    trailing: Switch(value: false, onChanged: (_) {}, activeThumbColor: AppColors.accent),
+                  ),
+                  const Divider(color: AppColors.border),
+                  _SettingRow(
+                    icon: Icons.lock_outline,
+                    label: 'Privacy',
+                    trailing: const Text('Data encrypted', style: TextStyle(color: AppColors.muted, fontSize: 12)),
+                  ),
+                  const Divider(color: AppColors.border),
+                  _SettingRow(
+                    icon: Icons.info_outline,
+                    label: 'About',
+                    trailing: Text(l.version, style: const TextStyle(color: AppColors.dimmed, fontSize: 11)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Sign out
+            OutlinedButton(
+              onPressed: () => showDialog(
+                context: context,
+                builder: (_) => AlertDialog(
+                  backgroundColor: AppColors.card,
+                  title: const Text('Sign Out', style: TextStyle(color: AppColors.text)),
+                  content: Text(l.signOutConfirm, style: const TextStyle(color: AppColors.muted)),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(context), child: Text(l.cancel)),
+                    TextButton(
+                      onPressed: () async {
+                        Navigator.pop(context);
+                        await context.read<AppProvider>().signOut();
+                        if (context.mounted) Navigator.pushReplacementNamed(context, '/login');
+                      },
+                      child: Text(l.signOut, style: const TextStyle(color: AppColors.red)),
+                    ),
+                  ],
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.red),
+                foregroundColor: AppColors.red,
+                minimumSize: const Size(double.infinity, 50),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.logout, size: 18),
+                  SizedBox(width: 8),
+                  Text('Sign Out'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 80),
           ],
         ),
-      ],
-    );
-  }
-}
-
-// ── Stats row ──────────────────────────────────────────────────────────────
-
-class _StatsRow extends StatelessWidget {
-  final AppProvider provider;
-  const _StatsRow({required this.provider});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _StatCard(
-            label: 'Salary Goal',
-            value: provider.user?.salaryGoal != null
-                ? 'RM ${provider.user!.salaryGoal!.toStringAsFixed(0)}'
-                : 'Not set',
-            color: AppColors.accent,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _StatCard(
-            label: 'Predictions',
-            value: '${provider.predictions.length}',
-            color: AppColors.teal,
-          ),
-        ),
-        const SizedBox(width: 10),
-        const Expanded(
-          child: _StatCard(
-            label: 'Reports',
-            value: '0 saved',
-            color: AppColors.purple,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
 
 class _StatCard extends StatelessWidget {
-  final String label;
-  final String value;
+  final String title, value;
   final Color color;
-  const _StatCard(
-      {required this.label, required this.value, required this.color});
+  const _StatCard({required this.title, required this.value, required this.color});
 
   @override
-  Widget build(BuildContext context) {
-    return AppCard(
+  Widget build(BuildContext context) => Expanded(
+    child: AppCard(
+      color: color.withValues(alpha: 0.1),
+      padding: const EdgeInsets.all(12),
       child: Column(
         children: [
-          Text(
-            value,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.w800,
-              fontSize: 15,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.muted,
-              fontSize: 10,
-              height: 1.3,
-            ),
-          ),
+          Text(value, style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 4),
+          Text(title, style: const TextStyle(color: AppColors.muted, fontSize: 11), textAlign: TextAlign.center),
         ],
       ),
-    );
-  }
+    ),
+  );
 }
 
-// ── Language switcher ──────────────────────────────────────────────────────
-
-class _LangSwitcher extends StatelessWidget {
-  final AppProvider provider;
-  const _LangSwitcher({required this.provider});
+class _LangBtn extends StatelessWidget {
+  final String label, code, current;
+  const _LangBtn({required this.label, required this.code, required this.current});
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '🌐  Language / Bahasa / 语言 / மொழி',
-            style: TextStyle(
-              color: AppColors.text,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-            ),
+    final active = code == current;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => context.read<AppProvider>().setLanguage(code),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: active ? AppColors.accent : AppColors.cardAlt,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: active ? AppColors.accent : AppColors.border),
           ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _buildLangButtons(context),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<Widget> _buildLangButtons(BuildContext context) {
-    final result = <Widget>[];
-    for (final opt in _kLangs) {
-      final active = provider.language == opt.code;
-      result.add(
-        GestureDetector(
-          onTap: () => provider.setLanguage(opt.code),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              color: active
-                  ? AppColors.accent.withOpacity(0.15)
-                  : Colors.transparent,
-              border: Border.all(
-                color: active
-                    ? AppColors.accent.withOpacity(0.5)
-                    : AppColors.border,
-              ),
-            ),
-            child: Text(
-              opt.label,
-              style: TextStyle(
-                color: active ? AppColors.accent : AppColors.muted,
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-            ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(color: active ? Colors.white : AppColors.muted, fontSize: 12, fontWeight: FontWeight.w600),
           ),
         ),
-      );
-    }
-    return result;
+      ),
+    );
   }
 }
 
-// ── Settings tile ──────────────────────────────────────────────────────────
-
-class _SettingsTile extends StatelessWidget {
+class _SettingRow extends StatelessWidget {
   final IconData icon;
   final String label;
-  final String sub;
-  final Color color;
-  const _SettingsTile({
-    required this.icon,
-    required this.label,
-    required this.sub,
-    required this.color,
-  });
+  final Widget trailing;
+  const _SettingRow({required this.icon, required this.label, required this.trailing});
 
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: AppCard(
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
-                color: color.withOpacity(0.15),
-              ),
-              child: Icon(icon, color: color, size: 18),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      color: AppColors.text,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                  ),
-                  Text(
-                    sub,
-                    style: const TextStyle(
-                      color: AppColors.muted,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right,
-                color: AppColors.dimmed, size: 18),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Row(
+      children: [
+        Icon(icon, color: AppColors.muted, size: 20),
+        const SizedBox(width: 12),
+        Expanded(child: Text(label, style: const TextStyle(color: AppColors.text))),
+        trailing,
+      ],
+    ),
+  );
 }
 
-// ── Sign-out button ────────────────────────────────────────────────────────
-
-class _SignOutButton extends StatelessWidget {
-  final AppProvider provider;
-  const _SignOutButton({required this.provider});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: () async {
-          await provider.signOut();
-          if (context.mounted) {
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const LoginScreen()),
-              (_) => false,
-            );
-          }
-        },
-        icon: const Icon(Icons.logout, size: 18, color: AppColors.red),
-        label: const Text(
-          'Sign Out',
-          style: TextStyle(color: AppColors.red),
-        ),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.red,
-          side: const BorderSide(color: Color(0x66EF4444)),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-        ),
-      ),
-    );
-  }
-}

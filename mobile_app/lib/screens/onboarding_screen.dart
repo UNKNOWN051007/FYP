@@ -1,44 +1,15 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../config/app_colors.dart';
+import 'package:wagewise/app_localizations.dart';
 import '../widgets/common_widgets.dart';
-import 'auth/login_screen.dart';
 
 class _Slide {
-  final String icon;
-  final String title;
-  final String subtitle;
-  final Color color;
-
-  const _Slide(
-      {required this.icon,
-      required this.title,
-      required this.subtitle,
-      required this.color});
+  final String titleKey;
+  final String descKey;
+  final IconData icon;
+  final List<Color> gradient;
+  const _Slide(this.titleKey, this.descKey, this.icon, this.gradient);
 }
-
-const _slides = [
-  _Slide(
-    icon: '📊',
-    title: 'Know Your Worth',
-    subtitle:
-        "Get AI-powered salary predictions specific to Malaysia's job market.",
-    color: AppColors.accent,
-  ),
-  _Slide(
-    icon: '🤝',
-    title: 'Negotiate with Confidence',
-    subtitle:
-        'Practice salary negotiations with our AI coach tailored to Malaysian workplace culture.',
-    color: AppColors.teal,
-  ),
-  _Slide(
-    icon: '⚖️',
-    title: 'Understand Your Rights',
-    subtitle:
-        'Access plain-language guidance on the Employment Act 1955 and labour laws.',
-    color: AppColors.purple,
-  ),
-];
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -48,142 +19,109 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  int _current = 0;
+  final _controller = PageController();
+  int _page = 0;
+
+  final _slides = const [
+    _Slide('onboarding1Title', 'onboarding1Desc', Icons.trending_up, AppColors.gradientBlue),
+    _Slide('onboarding2Title', 'onboarding2Desc', Icons.mic, AppColors.gradientTeal),
+    _Slide('onboarding3Title', 'onboarding3Desc', Icons.shield_outlined, [Color(0xFF8B5CF6), Color(0xFF3B82F6)]),
+  ];
 
   void _next() {
-    if (_current < _slides.length - 1) {
-      setState(() => _current++);
+    if (_page < 2) {
+      _controller.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
     } else {
-      _goToLogin();
+      Navigator.pushReplacementNamed(context, '/login');
     }
   }
 
-  void _goToLogin() {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-    );
+  String _getTitle(AppLocalizations l, int i) {
+    switch (i) {
+      case 0: return l.onboarding1Title;
+      case 1: return l.onboarding2Title;
+      default: return l.onboarding3Title;
+    }
+  }
+
+  String _getDesc(AppLocalizations l, int i) {
+    switch (i) {
+      case 0: return l.onboarding1Desc;
+      case 1: return l.onboarding2Desc;
+      default: return l.onboarding3Desc;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final slide = _slides[_current];
+    final l = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppColors.bg,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            children: [
-              const SizedBox(height: 48),
-              // Logo
-              Column(
-                children: [
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(18),
-                      gradient: const LinearGradient(
-                        colors: [AppColors.accent, AppColors.teal],
-                      ),
-                    ),
-                    child: const Center(
-                      child: Text('W',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 28)),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text('WageWise',
-                      style: TextStyle(
-                          color: AppColors.text,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 24)),
-                  const Text('Your Fair Wage Navigator',
-                      style: TextStyle(color: AppColors.muted, fontSize: 13)),
-                ],
+        child: Column(
+          children: [
+            Align(
+              alignment: Alignment.topRight,
+              child: TextButton(
+                onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
+                child: Text(l.skip, style: const TextStyle(color: AppColors.muted)),
               ),
-              const Spacer(),
-              // Slide content
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: Column(
-                  key: ValueKey(_current),
-                  children: [
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(24),
-                        color: slide.color.withOpacity(0.15),
-                        border: Border.all(
-                            color: slide.color.withOpacity(0.3), width: 1),
-                      ),
-                      child: Center(
-                          child: Text(slide.icon,
-                              style: const TextStyle(fontSize: 36))),
+            ),
+            Expanded(
+              child: PageView.builder(
+                controller: _controller,
+                itemCount: 3,
+                onPageChanged: (i) => setState(() => _page = i),
+                itemBuilder: (_, i) {
+                  final slide = _slides[i];
+                  return Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 120, height: 120,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(colors: slide.gradient),
+                            borderRadius: BorderRadius.circular(32),
+                          ),
+                          child: Icon(slide.icon, color: Colors.white, size: 60),
+                        ),
+                        const SizedBox(height: 40),
+                        Text(_getTitle(l, i), style: const TextStyle(color: AppColors.text, fontSize: 26, fontWeight: FontWeight.w800), textAlign: TextAlign.center),
+                        const SizedBox(height: 16),
+                        Text(_getDesc(l, i), style: const TextStyle(color: AppColors.muted, fontSize: 15, height: 1.6), textAlign: TextAlign.center),
+                      ],
                     ),
-                    const SizedBox(height: 24),
-                    Text(
-                      slide.title,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          color: AppColors.text,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 24,
-                          height: 1.2),
-                    ),
-                    const SizedBox(height: 14),
-                    Text(
-                      slide.subtitle,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          color: AppColors.muted, fontSize: 15, height: 1.6),
-                    ),
-                  ],
+                  );
+                },
+              ),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(3, (i) => AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                width: _page == i ? 24 : 8, height: 8,
+                decoration: BoxDecoration(
+                  color: _page == i ? AppColors.accent : AppColors.dimmed,
+                  borderRadius: BorderRadius.circular(4),
                 ),
+              )),
+            ),
+            const SizedBox(height: 32),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: GradientButton(
+                label: _page == 2 ? l.getStarted : l.next,
+                onPressed: _next,
               ),
-              const Spacer(),
-              // Dots
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(
-                  _slides.length,
-                  (i) => GestureDetector(
-                    onTap: () => setState(() => _current = i),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      width: i == _current ? 24 : 8,
-                      height: 8,
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(4),
-                        color: i == _current ? AppColors.accent : AppColors.dimmed,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 28),
-              GradientButton(
-                label: _current < _slides.length - 1 ? 'Continue →' : 'Get Started',
-                onTap: _next,
-              ),
-              if (_current < _slides.length - 1) ...[
-                const SizedBox(height: 14),
-                TextButton(
-                  onPressed: _goToLogin,
-                  child: const Text('Sign In',
-                      style: TextStyle(color: AppColors.muted)),
-                ),
-              ],
-              const SizedBox(height: 24),
-            ],
-          ),
+            ),
+            const SizedBox(height: 32),
+          ],
         ),
       ),
     );
   }
 }
+

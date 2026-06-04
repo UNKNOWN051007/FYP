@@ -16,9 +16,20 @@ app = FastAPI(
     description="Backend AI services for WageWise – Fair Wage Navigator",
 )
 
+_dev_origins = [
+    "http://localhost:5000",
+    "http://localhost:8080",
+    "http://localhost:3000",
+    "http://localhost:4200",
+    "http://127.0.0.1:5000",
+    "http://127.0.0.1:8000",
+    "http://127.0.0.1:8080",
+    "http://127.0.0.1:3000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=list(set(settings.cors_origins + _dev_origins)),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
