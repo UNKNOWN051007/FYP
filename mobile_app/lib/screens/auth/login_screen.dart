@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_colors.dart';
 import 'package:wagewise/app_localizations.dart';
@@ -18,24 +18,49 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passCtrl = TextEditingController();
   bool _loading = false;
   String? _error;
+  bool _showResend = false;
+  bool _resendSent = false;
 
   Future<void> _signIn() async {
     final email = _emailCtrl.text.trim();
     final pass = _passCtrl.text.trim();
     if (email.isEmpty || pass.isEmpty) {
-      setState(() => _error = 'Please fill in all fields');
+      setState(() { _error = 'Please fill in all fields'; _showResend = false; });
       return;
     }
-    setState(() { _loading = true; _error = null; });
+    setState(() { _loading = true; _error = null; _showResend = false; _resendSent = false; });
     try {
-      final user = await AuthService.signIn(email: email, password: pass);
-      context.read<AppProvider>().setUser(user);
+      await AuthService.signIn(email: email, password: pass);
+      if (!mounted) return;
+      await context.read<AppProvider>().init();
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/main');
     } catch (e) {
-      setState(() => _error = e.toString().replaceAll('Exception: ', ''));
+      final msg = e.toString();
+      if (msg.contains('email_not_confirmed')) {
+        setState(() {
+          _error = 'Please confirm your email first. Check your inbox for the confirmation link.';
+          _showResend = true;
+        });
+      } else {
+        setState(() => _error = msg.replaceAll('Exception: ', ''));
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _resend() async {
+    final email = _emailCtrl.text.trim();
+    if (email.isEmpty) {
+      setState(() => _error = 'Enter your email above first.');
+      return;
+    }
+    try {
+      await AuthService.resendConfirmation(email);
+      setState(() => _resendSent = true);
+    } catch (e) {
+      setState(() => _error = 'Failed to resend: ${e.toString().replaceAll('Exception: ', '')}');
     }
   }
 
@@ -55,13 +80,25 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 8),
               Text(l.signIn, style: const TextStyle(color: AppColors.text, fontSize: 22, fontWeight: FontWeight.w700)),
               const SizedBox(height: 32),
-              if (_error != null) ...[ErrorBox(_error!), const SizedBox(height: 16)],
+              if (_error != null) ...[ErrorBox(_error!), const SizedBox(height: 8)],
+              if (_showResend) ...[
+                _resendSent
+                    ? const Padding(
+                        padding: EdgeInsets.only(bottom: 12),
+                        child: Text('Confirmation email resent! Check your inbox.', style: TextStyle(color: AppColors.green, fontSize: 13)),
+                      )
+                    : TextButton(
+                        onPressed: _resend,
+                        child: const Text('Resend confirmation email', style: TextStyle(color: AppColors.accent, fontSize: 13)),
+                      ),
+              ],
+              if (_error != null || _showResend) const SizedBox(height: 8),
               FieldLabel(l.email),
               TextField(
                 controller: _emailCtrl,
                 keyboardType: TextInputType.emailAddress,
                 style: const TextStyle(color: AppColors.text),
-                decoration: InputDecoration(hintText: 'you@email.com'),
+                decoration: const InputDecoration(hintText: 'you@email.com'),
               ),
               const SizedBox(height: 16),
               FieldLabel(l.password),
@@ -69,7 +106,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 controller: _passCtrl,
                 obscureText: true,
                 style: const TextStyle(color: AppColors.text),
-                decoration: InputDecoration(hintText: 'â€¢â€¢â€¢â€¢â€¢â€¢'),
+                decoration: const InputDecoration(hintText: '••••••'),
                 onSubmitted: (_) => _signIn(),
               ),
               const SizedBox(height: 24),
@@ -88,4 +125,3 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
-

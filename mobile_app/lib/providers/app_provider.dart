@@ -11,6 +11,7 @@ import '../services/supabase_service.dart';
 class AppProvider extends ChangeNotifier {
   UserModel? _user;
   String _language = 'en';
+  int _tabIndex = 0;
   List<SalaryPrediction> _predictions = [];
   SalaryPrediction? _latestPrediction;
   bool _predictingSalary = false;
@@ -25,6 +26,7 @@ class AppProvider extends ChangeNotifier {
 
   UserModel? get user => _user;
   String get language => _language;
+  int get tabIndex => _tabIndex;
   List<SalaryPrediction> get predictions => _predictions;
   SalaryPrediction? get latestPrediction => _latestPrediction;
   bool get predictingSalary => _predictingSalary;
@@ -35,6 +37,11 @@ class AppProvider extends ChangeNotifier {
   List<ColEvaluation> get colResults => _colResults;
   bool get colLoading => _colLoading;
   String? get colError => _colError;
+
+  void setTab(int i) {
+    _tabIndex = i;
+    notifyListeners();
+  }
 
   void setUser(UserModel? user) {
     _user = user;

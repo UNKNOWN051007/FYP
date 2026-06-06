@@ -9,25 +9,30 @@ class AuthService {
     required String password,
     required String fullName,
   }) async {
-    final res = await _client.auth.signUp(email: email, password: password);
+    final res = await _client.auth.signUp(
+      email: email,
+      password: password,
+      data: {'full_name': fullName},
+    );
     final user = res.user;
     if (user == null) throw Exception('Sign up failed');
-    await _client.from('user_profiles').upsert({
-      'user_id': user.id,
-      'full_name': fullName,
-      'language_pref': 'en',
-    });
+    // Supabase silently returns empty identities when the email already exists
+    if (user.identities != null && user.identities!.isEmpty) {
+      throw Exception('An account with this email already exists. Please sign in instead.');
+    }
     return UserModel(userId: user.id, email: email, fullName: fullName);
   }
 
-  static Future<UserModel> signIn({
+  static Future<void> signIn({
     required String email,
     required String password,
   }) async {
     final res = await _client.auth.signInWithPassword(email: email, password: password);
-    final user = res.user;
-    if (user == null) throw Exception('Sign in failed');
-    return await getProfile() ?? UserModel(userId: user.id, email: email, fullName: '');
+    if (res.user == null) throw Exception('Sign in failed');
+  }
+
+  static Future<void> resendConfirmation(String email) async {
+    await _client.auth.resend(type: OtpType.signup, email: email);
   }
 
   static Future<void> signOut() async {

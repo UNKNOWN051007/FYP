@@ -104,10 +104,10 @@ class HomeScreen extends StatelessWidget {
               crossAxisSpacing: 12,
               childAspectRatio: 2.2,
               children: [
-                _ActionCard(label: l.salaryCheck, icon: Icons.bar_chart, color: AppColors.accent),
-                _ActionCard(label: l.negotiate, icon: Icons.mic, color: AppColors.teal),
-                _ActionCard(label: l.myRights, icon: Icons.shield_outlined, color: AppColors.purple),
-                _ActionCard(label: l.livingCost, icon: Icons.calculate_outlined, color: AppColors.amber),
+                _ActionCard(label: l.salaryCheck, icon: Icons.bar_chart, color: AppColors.accent, tabIndex: 1),
+                _ActionCard(label: l.negotiate, icon: Icons.mic, color: AppColors.teal, tabIndex: 2),
+                _ActionCard(label: l.myRights, icon: Icons.shield_outlined, color: AppColors.purple, tabIndex: 2),
+                _ActionCard(label: l.livingCost, icon: Icons.calculate_outlined, color: AppColors.amber, tabIndex: 3),
               ],
             ),
             const SizedBox(height: 20),
@@ -180,20 +180,24 @@ class _ActionCard extends StatelessWidget {
   final String label;
   final IconData icon;
   final Color color;
+  final int tabIndex;
 
-  const _ActionCard({required this.label, required this.icon, required this.color});
+  const _ActionCard({required this.label, required this.icon, required this.color, required this.tabIndex});
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      padding: const EdgeInsets.all(12),
-      color: color.withValues(alpha: 0.1),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 22),
-          const SizedBox(width: 8),
-          Expanded(child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 13))),
-        ],
+    return GestureDetector(
+      onTap: () => context.read<AppProvider>().setTab(tabIndex),
+      child: AppCard(
+        padding: const EdgeInsets.all(12),
+        color: color.withValues(alpha: 0.1),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 8),
+            Expanded(child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 13))),
+          ],
+        ),
       ),
     );
   }

@@ -218,11 +218,13 @@ CREATE TRIGGER trg_user_profiles_updated_at
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
 BEGIN
-  INSERT INTO public.user_profiles (user_id, full_name)
+  INSERT INTO public.user_profiles (user_id, full_name, language_pref)
   VALUES (
     NEW.id,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.email)
-  );
+    COALESCE(NEW.raw_user_meta_data->>'full_name', ''),
+    'en'
+  )
+  ON CONFLICT (user_id) DO NOTHING;
   RETURN NEW;
 END;
 $$;

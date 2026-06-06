@@ -1,23 +1,18 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../config/app_colors.dart';
 import 'package:wagewise/app_localizations.dart';
+import '../providers/app_provider.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/salary/salary_screen.dart';
 import '../screens/chatbot/chatbot_screen.dart';
 import '../screens/col/col_screen.dart';
 import '../screens/profile/profile_screen.dart';
 
-class MainScaffold extends StatefulWidget {
+class MainScaffold extends StatelessWidget {
   const MainScaffold({super.key});
 
-  @override
-  State<MainScaffold> createState() => _MainScaffoldState();
-}
-
-class _MainScaffoldState extends State<MainScaffold> {
-  int _currentIndex = 0;
-
-  final List<Widget> _screens = const [
+  static const List<Widget> _screens = [
     HomeScreen(),
     SalaryScreen(),
     ChatbotScreen(),
@@ -28,11 +23,13 @@ class _MainScaffoldState extends State<MainScaffold> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
+    final provider = context.watch<AppProvider>();
+    final currentIndex = provider.tabIndex;
     return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: _screens),
+      body: IndexedStack(index: currentIndex, children: _screens),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (i) => setState(() => _currentIndex = i),
+        currentIndex: currentIndex,
+        onTap: (i) => context.read<AppProvider>().setTab(i),
         backgroundColor: AppColors.card,
         selectedItemColor: AppColors.accent,
         unselectedItemColor: AppColors.dimmed,

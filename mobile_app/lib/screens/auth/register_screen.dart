@@ -1,8 +1,6 @@
 ﻿import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../config/app_colors.dart';
 import 'package:wagewise/app_localizations.dart';
-import '../../providers/app_provider.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/common_widgets.dart';
 
@@ -20,6 +18,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _confirmCtrl = TextEditingController();
   bool _loading = false;
   String? _error;
+  bool _registered = false;
 
   Future<void> _register() async {
     final name = _nameCtrl.text.trim();
@@ -40,10 +39,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
     setState(() { _loading = true; _error = null; });
     try {
-      final user = await AuthService.signUp(email: email, password: pass, fullName: name);
-      context.read<AppProvider>().setUser(user);
+      await AuthService.signUp(email: email, password: pass, fullName: name);
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/main');
+      setState(() => _registered = true);
     } catch (e) {
       setState(() => _error = e.toString().replaceAll('Exception: ', ''));
     } finally {
@@ -54,6 +52,35 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
+    if (_registered) {
+      return Scaffold(
+        backgroundColor: AppColors.bg,
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.mark_email_read_outlined, color: AppColors.accent, size: 72),
+                const SizedBox(height: 24),
+                const Text('Check your email', style: TextStyle(color: AppColors.text, fontSize: 22, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 12),
+                const Text(
+                  'We sent a confirmation link to your email. Please click it to activate your account, then sign in.',
+                  style: TextStyle(color: AppColors.muted, fontSize: 14, height: 1.6),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 32),
+                GradientButton(
+                  label: l.signIn,
+                  onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: AppColors.bg,
       body: SafeArea(
