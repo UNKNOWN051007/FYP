@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_colors.dart';
 import 'package:wagewise/app_localizations.dart';
@@ -37,9 +37,10 @@ class _ColScreenState extends State<ColScreen> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
+    final c = context.wc;
     final provider = context.watch<AppProvider>();
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: c.bg,
       appBar: AppBar(title: Text(l.colHeading)),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -54,7 +55,7 @@ class _ColScreenState extends State<ColScreen> {
                   TextField(
                     controller: _salaryCtrl,
                     keyboardType: TextInputType.number,
-                    style: const TextStyle(color: AppColors.text),
+                    style: TextStyle(color: c.text),
                   ),
                   const SizedBox(height: 16),
                   FieldLabel(l.selectCities),
@@ -63,13 +64,13 @@ class _ColScreenState extends State<ColScreen> {
                     children: _allCities.map((city) {
                       final selected = _selectedCities.contains(city);
                       return FilterChip(
-                        label: Text(city, style: TextStyle(color: selected ? AppColors.accent : AppColors.muted, fontSize: 12)),
+                        label: Text(city, style: TextStyle(color: selected ? c.accent : c.muted, fontSize: 12)),
                         selected: selected,
                         onSelected: (v) => setState(() => v ? _selectedCities.add(city) : _selectedCities.remove(city)),
-                        backgroundColor: AppColors.cardAlt,
-                        selectedColor: AppColors.accent.withValues(alpha: 0.15),
-                        checkmarkColor: AppColors.accent,
-                        side: BorderSide(color: selected ? AppColors.accent : AppColors.border),
+                        backgroundColor: c.cardAlt,
+                        selectedColor: c.accent.withValues(alpha: 0.15),
+                        checkmarkColor: c.accent,
+                        side: BorderSide(color: selected ? c.accent : c.border),
                       );
                     }).toList(),
                   ),
@@ -95,13 +96,17 @@ class _ColScreenState extends State<ColScreen> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                           decoration: BoxDecoration(
-                            color: active ? AppColors.accent : AppColors.cardAlt,
+                            color: active ? c.accent : c.cardAlt,
                             borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: active ? AppColors.accent : AppColors.border),
+                            border: Border.all(color: active ? c.accent : c.border),
                           ),
                           child: Text(
                             provider.colResults[i].city,
-                            style: TextStyle(color: active ? Colors.white : AppColors.muted, fontSize: 13, fontWeight: FontWeight.w600),
+                            style: TextStyle(
+                              color: active ? Colors.white : c.muted,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       );
@@ -127,11 +132,12 @@ class _ColResults extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.wc;
     final sustainColor = result.sustainability == 'comfortable'
-        ? AppColors.green
+        ? c.green
         : result.sustainability == 'tight'
-            ? AppColors.amber
-            : AppColors.red;
+            ? c.amber
+            : c.red;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -140,11 +146,11 @@ class _ColResults extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SectionHeader(l.deductions),
-              _Row('EPF (11%)', result.epfDeduction, AppColors.accent),
-              _Row('SOCSO (0.5%)', result.socsoDeduction, AppColors.teal),
-              _Row('Income Tax', result.taxDeduction, AppColors.amber),
-              const Divider(color: AppColors.border),
-              _Row(l.netSalary, result.netSalary, AppColors.green, bold: true),
+              _Row('EPF (11%)', result.epfDeduction, c.accent),
+              _Row('SOCSO (0.5%)', result.socsoDeduction, c.teal),
+              _Row('Income Tax', result.taxDeduction, c.amber),
+              Divider(color: c.border),
+              _Row(l.netSalary, result.netSalary, c.green, bold: true),
             ],
           ),
         ),
@@ -153,18 +159,18 @@ class _ColResults extends StatelessWidget {
           children: [
             Expanded(
               child: AppCard(
-                color: (result.meetsLivingWage ? AppColors.green : AppColors.red).withValues(alpha: 0.1),
+                color: (result.meetsLivingWage ? c.green : c.red).withValues(alpha: 0.1),
                 child: Column(
                   children: [
                     Icon(
                       result.meetsLivingWage ? Icons.check_circle : Icons.warning,
-                      color: result.meetsLivingWage ? AppColors.green : AppColors.red,
+                      color: result.meetsLivingWage ? c.green : c.red,
                     ),
                     const SizedBox(height: 4),
                     Text(
                       result.meetsLivingWage ? l.meetsLivingWage : l.belowLivingWage,
                       style: TextStyle(
-                        color: result.meetsLivingWage ? AppColors.green : AppColors.red,
+                        color: result.meetsLivingWage ? c.green : c.red,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -172,7 +178,7 @@ class _ColResults extends StatelessWidget {
                     ),
                     Text(
                       'RM ${result.livingWageBenchmark.toStringAsFixed(0)}',
-                      style: const TextStyle(color: AppColors.muted, fontSize: 11),
+                      style: TextStyle(color: c.muted, fontSize: 11),
                     ),
                   ],
                 ),
@@ -192,7 +198,7 @@ class _ColResults extends StatelessWidget {
                     ),
                     Text(
                       'RM ${result.disposableIncome.toStringAsFixed(0)}/mo',
-                      style: const TextStyle(color: AppColors.muted, fontSize: 11),
+                      style: TextStyle(color: c.muted, fontSize: 11),
                     ),
                   ],
                 ),
@@ -211,8 +217,8 @@ class _ColResults extends StatelessWidget {
               _ExpBar('Transport', result.transport, result.totalExpenses),
               _ExpBar('Utilities', result.utilities, result.totalExpenses),
               _ExpBar('Healthcare', result.healthcare, result.totalExpenses),
-              const Divider(color: AppColors.border),
-              _Row('Total', result.totalExpenses, AppColors.red, bold: true),
+              Divider(color: c.border),
+              _Row('Total', result.totalExpenses, c.red, bold: true),
             ],
           ),
         ),
@@ -237,16 +243,28 @@ class _Row extends StatelessWidget {
   const _Row(this.label, this.amount, this.color, {this.bold = false});
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: TextStyle(color: bold ? AppColors.text : AppColors.muted, fontWeight: bold ? FontWeight.w600 : FontWeight.normal)),
-        Text('RM ${amount.toStringAsFixed(0)}', style: TextStyle(color: color, fontWeight: bold ? FontWeight.w700 : FontWeight.normal)),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final c = context.wc;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: bold ? c.text : c.muted,
+              fontWeight: bold ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+          Text(
+            'RM ${amount.toStringAsFixed(0)}',
+            style: TextStyle(color: color, fontWeight: bold ? FontWeight.w700 : FontWeight.normal),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ExpBar extends StatelessWidget {
@@ -257,6 +275,7 @@ class _ExpBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.wc;
     final pct = total > 0 ? (amount / total).clamp(0.0, 1.0) : 0.0;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -266,10 +285,10 @@ class _ExpBar extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(label, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+              Text(label, style: TextStyle(color: c.muted, fontSize: 12)),
               Text(
                 'RM ${amount.toStringAsFixed(0)} (${(pct * 100).toStringAsFixed(0)}%)',
-                style: const TextStyle(color: AppColors.text, fontSize: 12),
+                style: TextStyle(color: c.text, fontSize: 12),
               ),
             ],
           ),
@@ -278,8 +297,8 @@ class _ExpBar extends StatelessWidget {
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: pct,
-              backgroundColor: AppColors.border,
-              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accent),
+              backgroundColor: c.border,
+              valueColor: AlwaysStoppedAnimation<Color>(c.accent),
               minHeight: 5,
             ),
           ),
@@ -288,4 +307,3 @@ class _ExpBar extends StatelessWidget {
     );
   }
 }
-

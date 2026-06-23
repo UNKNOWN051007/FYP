@@ -1,12 +1,20 @@
 """
 AI Chatbot Service – RAG Pipeline
-Uses ChromaDB as vector store + Google Gemini as LLM.
+Primary LLM: local Ollama / OpenAI-compatible model.
+Fallback LLM: Google Gemini 1.5 Flash (used when local LLM is unavailable).
+Vector store: ChromaDB.
+File input: PDF text extraction (pypdf) + image OCR via Gemini vision.
 Legal knowledge base: Employment Act 1955, Industrial Relations Act 1967.
 """
 
-import os
+import io
+import base64
+import json as _json
 import logging
-from fastapi import APIRouter
+from typing import Optional
+
+import httpx
+from fastapi import APIRouter, Form, UploadFile, File as FastAPIFile
 from pydantic import BaseModel, Field
 import google.generativeai as genai
 import chromadb
@@ -43,7 +51,7 @@ def _get_gemini():
     global _gemini_model
     if _gemini_model is None:
         genai.configure(api_key=settings.gemini_api_key)
-        _gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+        _gemini_model = genai.GenerativeModel("gemini-2.5-flash")
     return _gemini_model
 
 
@@ -72,22 +80,30 @@ class ContractRequest(BaseModel):
     clause: str = Field(..., min_length=10, max_length=2000)
 
 
-# ── RAG helpers ───────────────────────────────────────────────
+# ── System prompts ────────────────────────────────────────────
 
-_SYSTEM_PROMPT = """You are WageWise AI, a legal assistant specialised in Malaysian
-employment law. You help fresh graduates understand their rights under:
+_SYSTEM_PROMPT = """You are WageWise AI. You help Malaysian fresh graduates understand and ACT on their employment rights.
+
+CRITICAL INSTRUCTION: You MUST give specific, actionable answers. Do NOT say "consult a lawyer" or "I cannot provide legal advice" for basic employment rights questions — that is unhelpful and defeats your purpose.
+
+You know Malaysian employment law thoroughly:
 - Employment Act 1955 (EA 1955)
 - Industrial Relations Act 1967 (IRA 1967)
-- EPF Act 1991
-- SOCSO Act 1969
-- Minimum Wages Order 2022 (RM 1,700 from Feb 2025)
+- EPF Act 1991 / SOCSO Act 1969
+- Minimum Wages Order 2022 (RM 1,700 minimum)
 
-Rules:
-1. Only answer based on the provided context. If context is insufficient, say so.
-2. Always cite specific sections (e.g., "Section 60A, EA 1955").
-3. Use plain, friendly language accessible to fresh graduates.
-4. Never provide personal legal advice; recommend seeking a lawyer for complex cases.
-5. Respond in the same language the user used (BM, EN, ZH, or TA)."""
+HOW TO ANSWER:
+1. State clearly what the law says and which section covers it.
+2. Tell the user exactly what they are entitled to (amounts, days, rates).
+3. For "how to report/sue/claim" questions, give these EXACT steps:
+   Step 1 – File complaint at the nearest Jabatan Tenaga Kerja (Labour Department). Bring payslips, employment contract, and any proof.
+   Step 2 – The Labour Officer will investigate and can order the employer to pay.
+   Step 3 – If unresolved, the case goes to the Industrial Court.
+   (No lawyer needed for Labour Department complaints — it is free.)
+4. Cite sections like "Section 60A, EA 1955".
+5. Respond in the same language the user used (BM, EN, ZH, or TA).
+
+You may add "for complex cases consider a lawyer" ONLY at the very end, never as the main answer."""
 
 _NEGOTIATION_PROMPT = """You are a salary negotiation coach for Malaysian fresh graduates.
 Your role is to:
@@ -99,6 +115,105 @@ Your role is to:
 3. Use realistic Malaysian salary figures (RM 1,700–8,000 range).
 4. Keep scenarios grounded in Malaysian workplace culture."""
 
+_LOCAL_SYSTEM_MSG = "You are WageWise AI. Give specific, actionable answers about Malaysian employment rights. Always explain what the law says and what steps the user can take. Never refuse to answer basic employment rights questions."
+
+# MIME types for image files
+_IMAGE_MIMES: dict[str, str] = {
+    "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+    "gif": "image/gif", "webp": "image/webp", "bmp": "image/bmp",
+}
+
+
+# ── LLM helpers ───────────────────────────────────────────────
+
+def _call_local_llm(system: str, user: str) -> str:
+    """Call Ollama (default) or OpenAI-compatible local LLM."""
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": user},
+    ]
+    if settings.llm_provider == "openai":
+        url = f"{settings.llm_base_url.rstrip('/')}/v1/chat/completions"
+        payload = {"model": settings.llm_model, "messages": messages, "temperature": 0.2}
+        resp = httpx.post(url, json=payload, timeout=settings.llm_timeout)
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"].strip()
+    else:  # ollama
+        url = f"{settings.llm_base_url.rstrip('/')}/api/chat"
+        payload = {"model": settings.llm_model, "messages": messages, "stream": False}
+        resp = httpx.post(url, json=payload, timeout=settings.llm_timeout)
+        resp.raise_for_status()
+        return resp.json()["message"]["content"].strip()
+
+
+def _generate_answer(system: str, user: str) -> str:
+    """Try local LLM first; fall back to Gemini if unavailable."""
+    try:
+        return _call_local_llm(system, user)
+    except Exception as exc:
+        logger.warning("Local LLM unavailable (%s), falling back to Gemini", exc)
+        try:
+            model = _get_gemini()
+            response = model.generate_content(
+                f"{system}\n\n{user}",
+                request_options={"timeout": 30},
+            )
+            return response.text
+        except Exception:
+            logger.exception("Gemini fallback also failed")
+            return "I'm unable to generate a response at the moment. Please try again later."
+
+
+# ── File extraction helpers ───────────────────────────────────
+
+def _extract_pdf_text(data: bytes) -> str:
+    try:
+        from pypdf import PdfReader
+        reader = PdfReader(io.BytesIO(data))
+        pages = [page.extract_text() or "" for page in reader.pages]
+        return "\n\n".join(p for p in pages if p.strip())
+    except Exception as exc:
+        logger.warning("PDF extraction failed: %s", exc)
+        return ""
+
+
+def _extract_image_text(data: bytes, mime: str) -> str:
+    """Describe/OCR image using Gemini vision (works regardless of primary LLM)."""
+    try:
+        model = _get_gemini()
+        image_part = {"mime_type": mime, "data": base64.b64encode(data).decode()}
+        response = model.generate_content(
+            [
+                "Extract all visible text from this image. "
+                "If it is a contract or legal document, transcribe it in full. "
+                "If there is no text, describe any employment-related content you see.",
+                image_part,
+            ],
+            request_options={"timeout": 30},
+        )
+        return response.text
+    except Exception as exc:
+        logger.warning("Image extraction via Gemini vision failed: %s", exc)
+        return ""
+
+
+async def _extract_file_text(file: UploadFile) -> str:
+    name = file.filename or ""
+    ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+    data = await file.read()
+
+    if ext == "pdf":
+        return _extract_pdf_text(data)
+    if ext in _IMAGE_MIMES:
+        return _extract_image_text(data, _IMAGE_MIMES[ext])
+    # Plain text, CSV, Markdown, etc.
+    try:
+        return data.decode("utf-8", errors="replace")
+    except Exception:
+        return ""
+
+
+# ── RAG retrieval ─────────────────────────────────────────────
 
 def _retrieve_context(query: str, n_results: int = 5) -> tuple[str, list[Source]]:
     try:
@@ -121,48 +236,76 @@ def _retrieve_context(query: str, n_results: int = 5) -> tuple[str, list[Source]
         return "", []
 
 
+def _build_prompt(module: str, query: str, history: list[dict], file_ctx: str) -> tuple[str, str, list[Source]]:
+    """Return (system_prompt, user_content, sources) for the given module."""
+    file_section = f"\n\nAttached document content:\n{file_ctx}" if file_ctx else ""
+
+    history_text = "\n".join(f"{m['role'].upper()}: {m['content']}" for m in history) if history else ""
+    history_section = f"\n\nConversation so far:\n{history_text}" if history_text else ""
+
+    if module == "labour_rights":
+        context, sources = _retrieve_context(query)
+        user = (
+            f"Context from legal documents:\n{context or 'No specific context found.'}"
+            f"{history_section}"
+            f"{file_section}\n\n"
+            f"User question: {query}"
+        )
+        return _SYSTEM_PROMPT, user, sources
+
+    elif module == "negotiation_coach":
+        sources = []
+        user = (
+            f"Conversation so far:\n{history_text}"
+            f"{file_section}\n\n"
+            f"User: {query}"
+        )
+        return _NEGOTIATION_PROMPT, user, sources
+
+    else:  # contract_review
+        context, sources = _retrieve_context(query)
+        user = (
+            "The user has submitted an employment contract clause for review.\n"
+            f"Context:\n{context or 'No specific context.'}"
+            f"{history_section}"
+            f"{file_section}\n\n"
+            f"Contract clause: {query}\n\n"
+            "Identify any potential violations of Malaysian employment law. "
+            "If compliant, confirm and explain why."
+        )
+        return _SYSTEM_PROMPT, user, sources
+
+
 # ── Routes ────────────────────────────────────────────────────
 
 @router.post("", response_model=ChatResponse)
 async def chat(req: ChatRequest):
-    model = _get_gemini()
-
-    if req.module == "labour_rights":
-        context, sources = _retrieve_context(req.query)
-        prompt = (
-            f"{_SYSTEM_PROMPT}\n\n"
-            f"Context from legal documents:\n{context or 'No specific context found.'}\n\n"
-            f"User question: {req.query}"
-        )
-    elif req.module == "negotiation_coach":
-        context, sources = "", []
-        history_text = "\n".join(
-            f"{m['role'].upper()}: {m['content']}" for m in req.history
-        )
-        prompt = (
-            f"{_NEGOTIATION_PROMPT}\n\n"
-            f"Conversation so far:\n{history_text}\n\n"
-            f"User: {req.query}"
-        )
-    else:  # contract_review
-        context, sources = _retrieve_context(req.query)
-        prompt = (
-            f"{_SYSTEM_PROMPT}\n\n"
-            "The user has submitted an employment contract clause for review.\n"
-            f"Context:\n{context or 'No specific context.'}\n\n"
-            f"Contract clause: {req.query}\n\n"
-            "Identify any potential violations of Malaysian employment law. "
-            "If compliant, confirm and explain why."
-        )
-
-    try:
-        response = model.generate_content(prompt)
-        answer = response.text
-    except Exception:
-        logger.exception("Gemini generation failed")
-        answer = "I'm unable to generate a response at the moment. Please try again later."
-
+    system, user, sources = _build_prompt(req.module, req.query, req.history, "")
+    answer = _generate_answer(system, user)
     return ChatResponse(answer=answer, sources=sources, module=req.module)
+
+
+@router.post("/upload", response_model=ChatResponse)
+async def chat_with_file(
+    query: str = Form(...),
+    module: str = Form(default="labour_rights"),
+    session_id: Optional[str] = Form(None),
+    history: str = Form(default="[]"),
+    file: Optional[UploadFile] = FastAPIFile(None),
+):
+    """Chat endpoint that accepts an optional attached file (PDF, image, text, etc.)."""
+    try:
+        hist: list[dict] = _json.loads(history)
+    except Exception:
+        hist = []
+
+    file_ctx = ""
+    if file and file.filename:
+        file_ctx = await _extract_file_text(file)
+
+    system, user, sources = _build_prompt(module, query, hist, file_ctx)
+    answer = _generate_answer(system, user)
+    return ChatResponse(answer=answer, sources=sources, module=module)
 
 
 @router.post("/contract", response_model=ChatResponse)

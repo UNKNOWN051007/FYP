@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import '../config/env.dart';
 import '../models/salary_prediction.dart';
@@ -95,6 +96,30 @@ class ApiService {
       }),
     );
     if (res.statusCode != 200) throw ApiException(res.statusCode, 'Chat failed');
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    return ChatMessage.fromApiResponse(data, DateTime.now().millisecondsSinceEpoch.toString());
+  }
+
+  /// Send a chat message with an attached file (PDF, image, text, etc.).
+  static Future<ChatMessage> sendChatWithFile({
+    required String query,
+    required ChatModule module,
+    required String sessionId,
+    List<Map<String, String>> history = const [],
+    required Uint8List fileBytes,
+    required String fileName,
+  }) async {
+    final uri = Uri.parse('$_base/chat/upload');
+    final request = http.MultipartRequest('POST', uri)
+      ..fields['query'] = query
+      ..fields['module'] = module.apiValue
+      ..fields['session_id'] = sessionId
+      ..fields['history'] = jsonEncode(history)
+      ..files.add(http.MultipartFile.fromBytes('file', fileBytes, filename: fileName));
+
+    final streamed = await request.send().timeout(const Duration(seconds: 120));
+    final res = await http.Response.fromStream(streamed);
+    if (res.statusCode != 200) throw ApiException(res.statusCode, 'Chat with file failed');
     final data = jsonDecode(res.body) as Map<String, dynamic>;
     return ChatMessage.fromApiResponse(data, DateTime.now().millisecondsSinceEpoch.toString());
   }

@@ -16,7 +16,7 @@ extension ChatModuleExt on ChatModule {
     switch (this) {
       case ChatModule.labourRights: return 'labour_rights';
       case ChatModule.negotiationCoach: return 'negotiation_coach';
-      case ChatModule.contractAnalysis: return 'contract_analysis';
+      case ChatModule.contractAnalysis: return 'contract_review';
     }
   }
 }
@@ -27,6 +27,7 @@ class ChatMessage {
   final String content;
   final List<ChatSource> sources;
   final DateTime? createdAt;
+  final String? attachmentName;
 
   const ChatMessage({
     required this.messageId,
@@ -34,6 +35,7 @@ class ChatMessage {
     required this.content,
     this.sources = const [],
     this.createdAt,
+    this.attachmentName,
   });
 
   bool get isUser => role == 'user';

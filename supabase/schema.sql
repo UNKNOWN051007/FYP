@@ -234,6 +234,49 @@ CREATE TRIGGER trg_on_auth_user_created
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- ─────────────────────────────────────────────────────────────
+-- 10. save_chat_message RPC
+--     Atomically upserts the chat session (if it doesn't exist yet)
+--     then inserts the message.  SECURITY DEFINER so the session
+--     upsert bypasses RLS, while auth.uid() is still enforced.
+--     Called by the Flutter app via supabase.rpc('save_chat_message').
+-- ─────────────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.save_chat_message(
+  p_session_id  UUID,
+  p_module_type TEXT,
+  p_role        TEXT,
+  p_content     TEXT,
+  p_sources     JSONB DEFAULT '[]'::JSONB
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user_id    UUID := auth.uid();
+  v_message_id UUID;
+BEGIN
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+
+  -- Ensure the session row exists and belongs to this user
+  INSERT INTO public.chat_sessions (session_id, user_id, module_type)
+  VALUES (p_session_id, v_user_id, p_module_type)
+  ON CONFLICT (session_id) DO NOTHING;
+
+  -- Insert the message
+  INSERT INTO public.chat_messages (session_id, role, content, sources)
+  VALUES (p_session_id, p_role, p_content, p_sources)
+  RETURNING message_id INTO v_message_id;
+
+  RETURN v_message_id;
+END;
+$$;
+
+-- ─────────────────────────────────────────────────────────────
 -- Done! Verify with:
 --   SELECT tablename FROM pg_tables WHERE schemaname = 'public';
+--   SELECT routine_name FROM information_schema.routines
+--     WHERE routine_schema = 'public';
 -- ─────────────────────────────────────────────────────────────

@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     chroma_persist_dir: str = "./chroma_db"
     chroma_collection: str = "wagewise_legal_docs"
 
+    # Local LLM (primary) – Ollama or OpenAI-compatible
+    llm_provider: str = "ollama"           # "ollama" | "openai"
+    llm_base_url: str = "http://localhost:11434"
+    llm_model: str = "llama3.1:8b"
+    llm_timeout: int = 10
+
     app_env: str = "development"
     log_level: str = "info"
 

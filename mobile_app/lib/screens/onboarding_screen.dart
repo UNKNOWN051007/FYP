@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../config/app_colors.dart';
 import 'package:wagewise/app_localizations.dart';
 import '../widgets/common_widgets.dart';
@@ -7,8 +7,9 @@ class _Slide {
   final String titleKey;
   final String descKey;
   final IconData icon;
-  final List<Color> gradient;
-  const _Slide(this.titleKey, this.descKey, this.icon, this.gradient);
+  // gradient index: 0=primary, 1=secondary, 2=primary (reuse)
+  final int gradientIdx;
+  const _Slide(this.titleKey, this.descKey, this.icon, this.gradientIdx);
 }
 
 class OnboardingScreen extends StatefulWidget {
@@ -22,10 +23,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _controller = PageController();
   int _page = 0;
 
-  final _slides = const [
-    _Slide('onboarding1Title', 'onboarding1Desc', Icons.trending_up, AppColors.gradientBlue),
-    _Slide('onboarding2Title', 'onboarding2Desc', Icons.mic, AppColors.gradientTeal),
-    _Slide('onboarding3Title', 'onboarding3Desc', Icons.shield_outlined, [Color(0xFF8B5CF6), Color(0xFF3B82F6)]),
+  static const _slides = [
+    _Slide('onboarding1Title', 'onboarding1Desc', Icons.trending_up, 0),
+    _Slide('onboarding2Title', 'onboarding2Desc', Icons.mic, 1),
+    _Slide('onboarding3Title', 'onboarding3Desc', Icons.shield_outlined, 0),
   ];
 
   void _next() {
@@ -55,8 +56,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
+    final c = context.wc;
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: c.bg,
       body: SafeArea(
         child: Column(
           children: [
@@ -64,7 +66,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               alignment: Alignment.topRight,
               child: TextButton(
                 onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
-                child: Text(l.skip, style: const TextStyle(color: AppColors.muted)),
+                child: Text(l.skip, style: TextStyle(color: c.muted)),
               ),
             ),
             Expanded(
@@ -74,6 +76,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 onPageChanged: (i) => setState(() => _page = i),
                 itemBuilder: (_, i) {
                   final slide = _slides[i];
+                  final gradient = slide.gradientIdx == 1 ? c.gradientSecondary : c.gradientPrimary;
                   return Padding(
                     padding: const EdgeInsets.all(32),
                     child: Column(
@@ -82,15 +85,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         Container(
                           width: 120, height: 120,
                           decoration: BoxDecoration(
-                            gradient: LinearGradient(colors: slide.gradient),
+                            gradient: LinearGradient(colors: gradient),
                             borderRadius: BorderRadius.circular(32),
                           ),
                           child: Icon(slide.icon, color: Colors.white, size: 60),
                         ),
                         const SizedBox(height: 40),
-                        Text(_getTitle(l, i), style: const TextStyle(color: AppColors.text, fontSize: 26, fontWeight: FontWeight.w800), textAlign: TextAlign.center),
+                        Text(
+                          _getTitle(l, i),
+                          style: TextStyle(color: c.text, fontSize: 26, fontWeight: FontWeight.w800),
+                          textAlign: TextAlign.center,
+                        ),
                         const SizedBox(height: 16),
-                        Text(_getDesc(l, i), style: const TextStyle(color: AppColors.muted, fontSize: 15, height: 1.6), textAlign: TextAlign.center),
+                        Text(
+                          _getDesc(l, i),
+                          style: TextStyle(color: c.muted, fontSize: 15, height: 1.6),
+                          textAlign: TextAlign.center,
+                        ),
                       ],
                     ),
                   );
@@ -104,7 +115,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 margin: const EdgeInsets.symmetric(horizontal: 4),
                 width: _page == i ? 24 : 8, height: 8,
                 decoration: BoxDecoration(
-                  color: _page == i ? AppColors.accent : AppColors.dimmed,
+                  color: _page == i ? c.accent : c.dimmed,
                   borderRadius: BorderRadius.circular(4),
                 ),
               )),
@@ -124,4 +135,3 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 }
-

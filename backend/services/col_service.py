@@ -1,7 +1,29 @@
 """
 Cost-of-Living (COL) Service
 Computes EPF/SOCSO/tax deductions and district-level expense breakdowns
-for Malaysian cities based on DOSM PAKW data.
+for Malaysian cities.
+
+DATA SOURCE — Belanjawanku 2024/2025 (single adult, public transport user)
+Published by Employees Provident Fund (EPF/KWSP) Malaysia + Social Wellbeing
+Research Centre (SWRC), Universiti Malaya. Released 12 December 2024.
+Booklet: https://www.kwsp.gov.my/en/w/epf-releases-belanjawanku-2024/2025-and-retirement-income-adequacy-framework
+
+CITY TOTALS (LIVING_WAGE below) are TAKEN DIRECTLY from Belanjawanku 2024/2025
+where the city is covered, and estimated for cities not covered (see comments).
+
+CATEGORY BREAKDOWN (CITY_EXPENSES below) uses Belanjawanku's standard
+5-category proportions derived from the published Klang Valley breakdown
+(Food 29.4%, Housing 16.0%, Transport 10.7%, Utilities 5.3%, Healthcare 1.6%).
+These five sum to ~63% of the full Belanjawanku budget — the remaining ~37%
+covers savings, personal care, social participation, discretionary spending
+and annual expenses, which are not displayed in the WageWise breakdown but
+ARE included in the LIVING_WAGE benchmark.
+
+NOTE: Belanjawanku's "Housing" line assumes shared accommodation (e.g. living
+with family, or shared rental) — typical fresh-grad situation. Users renting
+independently in KL should override via the API's `custom_expenses` field.
+
+See docs/data_sources.md §3 for full citation table and verification status.
 """
 
 from fastapi import APIRouter
@@ -9,47 +31,69 @@ from pydantic import BaseModel, Field
 
 router = APIRouter()
 
-# ── City expense data (RM/month) – based on DOSM PAKW index ──
+# ── City expense data (RM/month) — Belanjawanku 2024/2025 proportional breakdown ──
+# rent, food, transport, utilities, healthcare. See module docstring for methodology.
 CITY_EXPENSES: dict[str, dict[str, float]] = {
+    # Klang Valley single adult (PT) = RM 1,970 [Belanjawanku 2024/2025]
+    # Sources: iMoney, WeirdKaya, Says.com, Malay Mail (all citing EPF 2024/2025)
     "Kuala Lumpur": {
-        "rent": 1400, "food": 450, "transport": 200,
-        "utilities": 120, "healthcare": 80,
+        "rent": 320, "food": 580, "transport": 210,
+        "utilities": 100, "healthcare": 30,
     },
-    "Penang": {
-        "rent": 900, "food": 380, "transport": 150,
-        "utilities": 100, "healthcare": 70,
-    },
-    "Johor Bahru": {
-        "rent": 850, "food": 350, "transport": 180,
-        "utilities": 100, "healthcare": 70,
-    },
-    "Kota Kinabalu": {
-        "rent": 800, "food": 320, "transport": 160,
-        "utilities": 90, "healthcare": 60,
-    },
-    "Kuching": {
-        "rent": 750, "food": 300, "transport": 150,
-        "utilities": 85, "healthcare": 60,
-    },
+    # Shah Alam falls inside the Belanjawanku "Klang Valley" region — same figures as KL
     "Shah Alam": {
-        "rent": 1100, "food": 400, "transport": 190,
-        "utilities": 110, "healthcare": 75,
+        "rent": 320, "food": 580, "transport": 210,
+        "utilities": 100, "healthcare": 30,
     },
+    # George Town (Penang) single adult (PT) = RM 1,860 [Belanjawanku 2024/2025]
+    "Penang": {
+        "rent": 300, "food": 550, "transport": 200,
+        "utilities": 100, "healthcare": 30,
+    },
+    # Johor Bahru: Belanjawanku 2022/23 = RM 1,760 + ~4% inter-edition uplift
+    # = RM 1,830 estimated 2024/25. TODO: verify against Belanjawanku 2024/25 PDF
+    # (single-adult JB number not surfaced in any secondary source so far).
+    "Johor Bahru": {
+        "rent": 290, "food": 540, "transport": 200,
+        "utilities": 100, "healthcare": 30,
+    },
+    # Kota Kinabalu: Belanjawanku 2022/23 = RM 1,710 + ~4.7% uplift = RM 1,790 est.
+    # TODO: verify against Belanjawanku 2024/25 PDF.
+    "Kota Kinabalu": {
+        "rent": 290, "food": 530, "transport": 190,
+        "utilities": 90, "healthcare": 30,
+    },
+    # Ipoh: Belanjawanku 2022/23 = RM 1,680 + ~4% uplift = RM 1,750 estimated 2024/25.
+    # The Kota Bharu 2024/25 figure was confirmed at +4.5% vs 2022/23, so same band assumed.
     "Ipoh": {
-        "rent": 650, "food": 280, "transport": 130,
-        "utilities": 80, "healthcare": 55,
+        "rent": 280, "food": 510, "transport": 190,
+        "utilities": 90, "healthcare": 30,
     },
+    # Kuching: same methodology as Ipoh — Belanjawanku 2022/23 RM 1,680 + ~4% = RM 1,750.
+    "Kuching": {
+        "rent": 280, "food": 510, "transport": 190,
+        "utilities": 90, "healthcare": 30,
+    },
+    # Kota Bharu single adult (PT) = RM 1,610 [Belanjawanku 2024/2025]
+    # Source: WeirdKaya / Malay Mail Dec 2024 articles citing EPF 2024/25 (range stated
+    # as "RM1,610 (Kota Bharu) to RM1,970 (Klang Valley)").
     "Kota Bharu": {
-        "rent": 550, "food": 260, "transport": 120,
-        "utilities": 75, "healthcare": 50,
+        "rent": 260, "food": 470, "transport": 170,
+        "utilities": 90, "healthcare": 30,
     },
 }
 
-# Living wage benchmarks (net, RM/month)
+# Living wage = full Belanjawanku 2024/2025 monthly budget (single adult, PT user)
+# This is the figure WageWise compares net salary against.
 LIVING_WAGE: dict[str, float] = {
-    "Kuala Lumpur": 2900, "Penang": 2500, "Johor Bahru": 2200,
-    "Kota Kinabalu": 2000, "Kuching": 1900, "Shah Alam": 2600,
-    "Ipoh": 1800, "Kota Bharu": 1700,
+    "Kuala Lumpur":   1970,  # ✅ Belanjawanku 2024/2025 Klang Valley
+    "Shah Alam":      1970,  # ✅ within Klang Valley region
+    "Penang":         1860,  # ✅ Belanjawanku 2024/2025 George Town
+    "Johor Bahru":    1830,  # ⚠️ estimated from 2022/23 + uplift — TODO verify
+    "Kota Kinabalu":  1790,  # ⚠️ estimated from 2022/23 + uplift — TODO verify
+    "Ipoh":           1750,  # ⚠️ estimated from 2022/23 + uplift — TODO verify
+    "Kuching":        1750,  # ⚠️ estimated from 2022/23 + uplift — TODO verify
+    "Kota Bharu":     1610,  # ✅ Belanjawanku 2024/2025
 }
 
 

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_colors.dart';
 import 'package:wagewise/app_localizations.dart';
@@ -11,6 +11,7 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
+    final c = context.wc;
     final provider = context.watch<AppProvider>();
     final user = provider.user;
     final initials = user != null && user.fullName.isNotEmpty
@@ -18,7 +19,7 @@ class ProfileScreen extends StatelessWidget {
         : 'WW';
 
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: c.bg,
       appBar: AppBar(title: Text(l.profileHeading)),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -31,22 +32,25 @@ class ProfileScreen extends StatelessWidget {
                   Container(
                     width: 80, height: 80,
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(colors: AppColors.gradientBlue),
+                      gradient: LinearGradient(colors: c.gradientPrimary),
                       borderRadius: BorderRadius.circular(40),
                     ),
                     alignment: Alignment.center,
-                    child: Text(initials, style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800)),
+                    child: Text(
+                      initials,
+                      style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800),
+                    ),
                   ),
                   const SizedBox(height: 12),
-                  Text(user?.fullName ?? 'Guest', style: const TextStyle(color: AppColors.text, fontSize: 20, fontWeight: FontWeight.w700)),
+                  Text(user?.fullName ?? 'Guest', style: TextStyle(color: c.text, fontSize: 20, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 4),
-                  Text(user?.email ?? '', style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+                  Text(user?.email ?? '', style: TextStyle(color: c.muted, fontSize: 13)),
                   const SizedBox(height: 12),
-                  const Wrap(
+                  Wrap(
                     spacing: 8,
                     children: [
-                      AppTag(label: 'Final Year Student', color: AppColors.accent),
-                      AppTag(label: 'IT / CS', color: AppColors.teal),
+                      AppTag(label: 'Final Year Student', color: c.accent),
+                      AppTag(label: 'IT / CS', color: c.teal),
                     ],
                   ),
                 ],
@@ -60,12 +64,12 @@ class ProfileScreen extends StatelessWidget {
                 _StatCard(
                   title: 'Salary Goal',
                   value: user?.salaryGoal != null ? 'RM ${user!.salaryGoal!.toStringAsFixed(0)}' : 'Not set',
-                  color: AppColors.accent,
+                  color: c.accent,
                 ),
                 const SizedBox(width: 8),
-                _StatCard(title: 'Predictions', value: provider.predictions.length.toString(), color: AppColors.teal),
+                _StatCard(title: 'Predictions', value: provider.predictions.length.toString(), color: c.teal),
                 const SizedBox(width: 8),
-                _StatCard(title: 'Saved', value: '0', color: AppColors.purple),
+                _StatCard(title: 'Saved', value: '0', color: c.purple),
               ],
             ),
             const SizedBox(height: 12),
@@ -92,6 +96,19 @@ class ProfileScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
 
+            // Theme Picker
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SectionHeader('Appearance'),
+                  const SizedBox(height: 4),
+                  const _ThemePicker(),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
             // Settings
             AppCard(
               child: Column(
@@ -99,25 +116,25 @@ class ProfileScreen extends StatelessWidget {
                   _SettingRow(
                     icon: Icons.bookmark_border,
                     label: 'Saved Reports',
-                    trailing: const Text('0', style: TextStyle(color: AppColors.muted)),
+                    trailing: Text('0', style: TextStyle(color: c.muted)),
                   ),
-                  const Divider(color: AppColors.border),
+                  Divider(color: c.border),
                   _SettingRow(
                     icon: Icons.notifications_outlined,
                     label: 'Notifications',
-                    trailing: Switch(value: false, onChanged: (_) {}, activeThumbColor: AppColors.accent),
+                    trailing: Switch(value: false, onChanged: (_) {}, activeThumbColor: c.accent),
                   ),
-                  const Divider(color: AppColors.border),
+                  Divider(color: c.border),
                   _SettingRow(
                     icon: Icons.lock_outline,
                     label: 'Privacy',
-                    trailing: const Text('Data encrypted', style: TextStyle(color: AppColors.muted, fontSize: 12)),
+                    trailing: Text('Data encrypted', style: TextStyle(color: c.muted, fontSize: 12)),
                   ),
-                  const Divider(color: AppColors.border),
+                  Divider(color: c.border),
                   _SettingRow(
                     icon: Icons.info_outline,
                     label: 'About',
-                    trailing: Text(l.version, style: const TextStyle(color: AppColors.dimmed, fontSize: 11)),
+                    trailing: Text(l.version, style: TextStyle(color: c.dimmed, fontSize: 11)),
                   ),
                 ],
               ),
@@ -129,9 +146,9 @@ class ProfileScreen extends StatelessWidget {
               onPressed: () => showDialog(
                 context: context,
                 builder: (_) => AlertDialog(
-                  backgroundColor: AppColors.card,
-                  title: const Text('Sign Out', style: TextStyle(color: AppColors.text)),
-                  content: Text(l.signOutConfirm, style: const TextStyle(color: AppColors.muted)),
+                  backgroundColor: c.card,
+                  title: Text('Sign Out', style: TextStyle(color: c.text)),
+                  content: Text(l.signOutConfirm, style: TextStyle(color: c.muted)),
                   actions: [
                     TextButton(onPressed: () => Navigator.pop(context), child: Text(l.cancel)),
                     TextButton(
@@ -140,14 +157,14 @@ class ProfileScreen extends StatelessWidget {
                         await context.read<AppProvider>().signOut();
                         if (context.mounted) Navigator.pushReplacementNamed(context, '/login');
                       },
-                      child: Text(l.signOut, style: const TextStyle(color: AppColors.red)),
+                      child: Text(l.signOut, style: TextStyle(color: c.red)),
                     ),
                   ],
                 ),
               ),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppColors.red),
-                foregroundColor: AppColors.red,
+                side: BorderSide(color: c.red),
+                foregroundColor: c.red,
                 minimumSize: const Size(double.infinity, 50),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
@@ -168,25 +185,103 @@ class ProfileScreen extends StatelessWidget {
   }
 }
 
+// ── Theme Picker ────────────────────────────────────────────────────────────
+
+class _ThemePicker extends StatelessWidget {
+  static const _names = ['Dark Navy', 'Light Day', 'Midnight', 'Sunset', 'Ocean'];
+  static const _bgs = [
+    Color(0xFF0E1B2E),
+    Color(0xFFF5F7FA),
+    Color(0xFF050505),
+    Color(0xFF1C0F05),
+    Color(0xFF051520),
+  ];
+  static const _accents = [
+    Color(0xFFFF921C),
+    Color(0xFFFF921C),
+    Color(0xFFFF921C),
+    Color(0xFFFF6B35),
+    Color(0xFF14B8A6),
+  ];
+
+  const _ThemePicker();
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<AppProvider>();
+    final c = context.wc;
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: List.generate(5, (i) {
+        final active = provider.themeIndex == i;
+        return GestureDetector(
+          onTap: () => provider.setTheme(i),
+          child: Column(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: _bgs[i],
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: active ? c.accent : c.border,
+                    width: active ? 2.5 : 1,
+                  ),
+                  boxShadow: active
+                      ? [BoxShadow(color: c.accent.withValues(alpha: 0.4), blurRadius: 8)]
+                      : null,
+                ),
+                child: Center(
+                  child: Container(
+                    width: 18,
+                    height: 18,
+                    decoration: BoxDecoration(color: _accents[i], shape: BoxShape.circle),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _names[i],
+                style: TextStyle(
+                  color: active ? c.accent : c.muted,
+                  fontSize: 10,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        );
+      }),
+    );
+  }
+}
+
+// ── Sub-widgets ──────────────────────────────────────────────────────────────
+
 class _StatCard extends StatelessWidget {
   final String title, value;
   final Color color;
   const _StatCard({required this.title, required this.value, required this.color});
 
   @override
-  Widget build(BuildContext context) => Expanded(
-    child: AppCard(
-      color: color.withValues(alpha: 0.1),
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        children: [
-          Text(value, style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 4),
-          Text(title, style: const TextStyle(color: AppColors.muted, fontSize: 11), textAlign: TextAlign.center),
-        ],
+  Widget build(BuildContext context) {
+    final c = context.wc;
+    return Expanded(
+      child: AppCard(
+        color: color.withValues(alpha: 0.1),
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Text(value, style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 4),
+            Text(title, style: TextStyle(color: c.muted, fontSize: 11), textAlign: TextAlign.center),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _LangBtn extends StatelessWidget {
@@ -195,6 +290,7 @@ class _LangBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.wc;
     final active = code == current;
     return Expanded(
       child: GestureDetector(
@@ -202,14 +298,18 @@ class _LangBtn extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
-            color: active ? AppColors.accent : AppColors.cardAlt,
+            color: active ? c.accent : c.cardAlt,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: active ? AppColors.accent : AppColors.border),
+            border: Border.all(color: active ? c.accent : c.border),
           ),
           alignment: Alignment.center,
           child: Text(
             label,
-            style: TextStyle(color: active ? Colors.white : AppColors.muted, fontSize: 12, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              color: active ? Colors.white : c.muted,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ),
@@ -224,16 +324,18 @@ class _SettingRow extends StatelessWidget {
   const _SettingRow({required this.icon, required this.label, required this.trailing});
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 8),
-    child: Row(
-      children: [
-        Icon(icon, color: AppColors.muted, size: 20),
-        const SizedBox(width: 12),
-        Expanded(child: Text(label, style: const TextStyle(color: AppColors.text))),
-        trailing,
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final c = context.wc;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Icon(icon, color: c.muted, size: 20),
+          const SizedBox(width: 12),
+          Expanded(child: Text(label, style: TextStyle(color: c.text))),
+          trailing,
+        ],
+      ),
+    );
+  }
 }
-

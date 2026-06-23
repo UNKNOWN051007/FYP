@@ -1,4 +1,6 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/user_model.dart';
 import '../models/salary_prediction.dart';
@@ -12,6 +14,7 @@ class AppProvider extends ChangeNotifier {
   UserModel? _user;
   String _language = 'en';
   int _tabIndex = 0;
+  int _themeIndex = 1; // Light Day — user can switch via Profile > Appearance
   List<SalaryPrediction> _predictions = [];
   SalaryPrediction? _latestPrediction;
   bool _predictingSalary = false;
@@ -27,6 +30,7 @@ class AppProvider extends ChangeNotifier {
   UserModel? get user => _user;
   String get language => _language;
   int get tabIndex => _tabIndex;
+  int get themeIndex => _themeIndex;
   List<SalaryPrediction> get predictions => _predictions;
   SalaryPrediction? get latestPrediction => _latestPrediction;
   bool get predictingSalary => _predictingSalary;
@@ -41,6 +45,13 @@ class AppProvider extends ChangeNotifier {
   void setTab(int i) {
     _tabIndex = i;
     notifyListeners();
+  }
+
+  Future<void> setTheme(int index) async {
+    _themeIndex = index;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('theme_index', index);
   }
 
   void setUser(UserModel? user) {
@@ -61,8 +72,9 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> signOut() async {
-    await AuthService.signOut();
+  /// Wipes local state without calling AuthService.signOut().
+  /// Used by the auth-stream listener so we don't double-call Supabase signOut.
+  void clearUser() {
     _user = null;
     _predictions = [];
     _latestPrediction = null;
@@ -72,7 +84,16 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> signOut() async {
+    await AuthService.signOut(); // fires signedOut event → stream listener clears state
+    clearUser();
+  }
+
   Future<void> init() async {
+    // Load persisted theme before notifying so first frame uses correct theme.
+    final prefs = await SharedPreferences.getInstance();
+    _themeIndex = prefs.getInt('theme_index') ?? 1;
+
     try {
       final profile = await AuthService.getProfile();
       if (profile != null) {
@@ -118,38 +139,65 @@ class AppProvider extends ChangeNotifier {
     _messages = [];
     _activeSessionId = null;
     notifyListeners();
-    try {
-      _activeSessionId = await SupabaseService.createChatSession(module.apiValue);
-    } catch (_) {
-      _activeSessionId = const Uuid().v4();
-    }
+    // Session will be lazily created on first sendMessage to avoid
+    // failures when user just browses tabs without sending anything.
     notifyListeners();
   }
 
-  Future<void> sendMessage(String content) async {
-    _activeSessionId ??= const Uuid().v4();
+  Future<String> _ensureSession() async {
+    if (_activeSessionId != null) return _activeSessionId!;
+    try {
+      _activeSessionId = await SupabaseService.createChatSession(_chatModule.apiValue);
+    } catch (_) {
+      _activeSessionId = const Uuid().v4();
+    }
+    return _activeSessionId!;
+  }
+
+  /// Send a message, optionally with an attached file.
+  Future<void> sendMessage(
+    String content, {
+    Uint8List? fileBytes,
+    String? fileName,
+  }) async {
+    await _ensureSession();
     final userMsg = ChatMessage(
       messageId: const Uuid().v4(),
       role: 'user',
       content: content,
+      attachmentName: fileName,
     );
     _messages = [..._messages, userMsg];
     _chatLoading = true;
     notifyListeners();
 
+    // Persist user message — non-blocking; RLS/auth failures must not break the chat.
     try {
       await SupabaseService.saveChatMessage(
         sessionId: _activeSessionId!,
+        moduleType: _chatModule.apiValue,
         role: 'user',
         content: content,
       );
+    } catch (_) {}
+
+    try {
       final history = _messages
           .where((m) => m != userMsg)
           .map((m) => {'role': m.role, 'content': m.content})
           .toList();
 
       ChatMessage botMsg;
-      if (_chatModule == ChatModule.contractAnalysis) {
+      if (fileBytes != null && fileName != null) {
+        botMsg = await ApiService.sendChatWithFile(
+          query: content,
+          module: _chatModule,
+          sessionId: _activeSessionId!,
+          history: history,
+          fileBytes: fileBytes,
+          fileName: fileName,
+        );
+      } else if (_chatModule == ChatModule.contractAnalysis) {
         botMsg = await ApiService.analyseContract(content);
       } else {
         botMsg = await ApiService.sendChat(
@@ -160,12 +208,17 @@ class AppProvider extends ChangeNotifier {
         );
       }
       _messages = [..._messages, botMsg];
-      await SupabaseService.saveChatMessage(
-        sessionId: _activeSessionId!,
-        role: 'bot',
-        content: botMsg.content,
-        sources: botMsg.sources.map((s) => {'title': s.title, 'section': s.section}).toList(),
-      );
+
+      // Persist bot message — non-blocking.
+      try {
+        await SupabaseService.saveChatMessage(
+          sessionId: _activeSessionId!,
+          moduleType: _chatModule.apiValue,
+          role: 'bot',
+          content: botMsg.content,
+          sources: botMsg.sources.map((s) => {'title': s.title, 'section': s.section}).toList(),
+        );
+      } catch (_) {}
     } catch (e) {
       final errMsg = ChatMessage(
         messageId: const Uuid().v4(),

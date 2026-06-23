@@ -49,15 +49,19 @@ class SupabaseService {
 
   static Future<void> saveChatMessage({
     required String sessionId,
+    required String moduleType,
     required String role,
     required String content,
     List<Map<String, dynamic>> sources = const [],
   }) async {
-    await _client.from('chat_messages').insert({
-      'session_id': sessionId,
-      'role': role,
-      'content': content,
-      'sources': sources,
+    // Uses the save_chat_message RPC (SECURITY DEFINER) which atomically
+    // upserts the session then inserts the message, avoiding RLS 403s.
+    await _client.rpc('save_chat_message', params: {
+      'p_session_id': sessionId,
+      'p_module_type': moduleType,
+      'p_role': role,
+      'p_content': content,
+      'p_sources': sources,
     });
   }
 

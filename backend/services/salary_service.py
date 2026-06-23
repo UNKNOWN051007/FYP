@@ -11,9 +11,15 @@ import joblib
 import numpy as np
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from config import get_settings
+from data.job_titles import (
+    CANONICAL_INDUSTRIES,
+    JOB_TITLE_BASELINES,
+    is_canonical_title,
+    looks_like_job_title,
+)
 
 router = APIRouter()
 settings = get_settings()
@@ -38,11 +44,37 @@ def _load_model():
 # ── Request / Response schemas ────────────────────────────────
 
 class PredictRequest(BaseModel):
-    job_title: str = Field(..., example="Software Engineer")
+    job_title: str = Field(..., example="Software Engineer", min_length=4, max_length=60)
     industry: str = Field(..., example="Information Technology")
     education_level: str = Field(..., example="Bachelor's Degree")
     years_experience: int = Field(..., ge=0, le=40, example=0)
     location: str = Field(..., example="Kuala Lumpur")
+
+    @field_validator("industry")
+    @classmethod
+    def _check_industry(cls, v: str) -> str:
+        if v not in CANONICAL_INDUSTRIES:
+            raise ValueError(
+                f"industry must be one of {sorted(CANONICAL_INDUSTRIES)}"
+            )
+        return v
+
+    @field_validator("job_title")
+    @classmethod
+    def _check_job_title(cls, v: str) -> str:
+        v = v.strip()
+        # Accept canonical titles outright (case-insensitive)
+        if is_canonical_title(v):
+            return v
+        # For free-text fallback (industry == "Others"), require it to look
+        # like a real job title — rejects "bla", "asdf", "12345", "!@#" etc.
+        if not looks_like_job_title(v):
+            raise ValueError(
+                "job_title doesn't look like a real role. "
+                "Pick from the suggested list or enter a proper title "
+                "(e.g. 'Software Engineer', 'Mechanical Engineer')."
+            )
+        return v
 
 
 class SalaryRange(BaseModel):
@@ -89,18 +121,33 @@ _EDU_MULTIPLIER: dict[str, float] = {
 }
 
 
+# Per-title base lookup so the heuristic actually uses the job title
+# instead of just the industry average.
+_TITLE_BASE: dict[str, int] = {
+    title: base
+    for entries in JOB_TITLE_BASELINES.values()
+    for title, base in entries
+}
+
+
 def _heuristic_predict(req: PredictRequest) -> SalaryRange:
-    base = _BASE_SALARY.get(req.industry, _BASE_SALARY["Default"])
+    title_base = _TITLE_BASE.get(req.job_title)
+    base = title_base if title_base is not None else _BASE_SALARY.get(
+        req.industry, _BASE_SALARY["Default"]
+    )
     loc_m = _LOCATION_MULTIPLIER.get(req.location, 1.0)
     edu_m = _EDU_MULTIPLIER.get(req.education_level, 1.0)
-    exp_bonus = req.years_experience * 150
+    exp_bonus = req.years_experience * 200
 
     median = (base + exp_bonus) * loc_m * edu_m
+    # Heuristic confidence stays below the ML model's "high": "medium" when the
+    # title is in our curated catalogue, "low" when we're guessing by industry.
+    confidence = "medium" if title_base is not None else "low"
     return SalaryRange(
-        p25=round(median * 0.75, 2),
+        p25=round(median * 0.78, 2),
         p50=round(median, 2),
-        p75=round(median * 1.42, 2),
-        confidence="medium",
+        p75=round(median * 1.38, 2),
+        confidence=confidence,
     )
 
 
@@ -119,7 +166,7 @@ async def predict_salary(req: PredictRequest):
             confidence="high",
         )
         records = 1240
-    except FileNotFoundError:
+    except Exception:
         salary_range = _heuristic_predict(req)
         records = 0
 
