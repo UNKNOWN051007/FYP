@@ -3,11 +3,25 @@ Initialise ChromaDB vector store with Malaysian employment law content.
 Run once before starting the backend: python init_chroma.py
 
 Seeds the collection with key provisions from:
-- Employment Act 1955 (EA 1955)
-- Industrial Relations Act 1967 (IRA 1967)
-- EPF Act 1991
-- SOCSO Act 1969
-- Minimum Wages Order 2022
+- Employment Act 1955 (Act 265), as amended by Employment (Amendment) Act 2022
+  (in force 1 January 2023). Authoritative text: https://lom.agc.gov.my/act-detail.php?act=265
+- Industrial Relations Act 1967 (Act 177).
+  Authoritative text: https://lom.agc.gov.my/act-detail.php?act=177
+- Employees Provident Fund Act 1991 (Act 452).
+  Authoritative text: https://lom.agc.gov.my/act-detail.php?act=452
+- Employees' Social Security Act 1969 (Act 4) — referred to colloquially as the
+  "SOCSO Act". Authoritative text: https://lom.agc.gov.my/act-detail.php?act=4
+- Minimum Wages Order 2024 (PU(A) 376/2024), gazetted 4 December 2024, made
+  under the National Wages Consultative Council Act 2011 (Act 732). RM 1,700
+  effective 1 February 2025 (MASCO professional employers) and 1 August 2025
+  (all employers). Source: Federal Gazette via AGC; summary at
+  https://www.skrine.com/insights/alerts/december-2024/minimum-wages-order-2024-gazetted
+
+CITATION STATUS: text snippets below are PARAPHRASED summaries written for RAG
+retrieval, NOT direct legal quotation. For any legal advice or FYP citation,
+always reference the authoritative Act text at lom.agc.gov.my (Laws of
+Malaysia portal, Attorney General's Chambers). See docs/data_sources.md §5
+for the full inventory and per-snippet citation table.
 """
 
 import os
@@ -166,15 +180,20 @@ LEGAL_DOCS = [
     },
     # ── Minimum Wages Order ──────────────────────────────────────
     {
-        "id": "mwo_2022",
-        "title": "Minimum Wages Order 2022",
-        "section": "Minimum Wage Rate",
+        "id": "mwo_2024",
+        "title": "Minimum Wages Order 2024",
+        "section": "Minimum Wage Rate (PU(A) 376/2024)",
         "text": (
-            "The Minimum Wages Order 2022 sets the national minimum wage at RM1,700 per month "
-            "(effective 1 February 2023) for all employees in Malaysia, regardless of the number "
-            "of employees in the company. Employers who fail to pay the minimum wage commit an "
-            "offence under the National Wages Consultative Council Act 2011 and are liable to a "
-            "fine of up to RM10,000 per employee per month."
+            "The Minimum Wages Order 2024, gazetted on 4 December 2024 under the National Wages "
+            "Consultative Council Act 2011, sets the national minimum wage at RM 1,700 per month. "
+            "It came into force in two phases: from 1 February 2025 for employers categorised as "
+            "carrying out professional activities under the Malaysia Standard Classification of "
+            "Occupations 2020 (MASCO Employers) regardless of headcount; and from 1 August 2025 "
+            "for ALL other employers regardless of headcount. Between 1 February 2025 and 1 "
+            "August 2025, non-MASCO employers with fewer than five employees were permitted to "
+            "continue paying the previous minimum of RM 1,500 (set by the Minimum Wages Order "
+            "2022). Employers who fail to comply are liable on first conviction to a fine of up "
+            "to RM 10,000 per employee."
         ),
     },
     # ── Salary negotiation tips ──────────────────────────────────

@@ -228,7 +228,7 @@ JOB_TITLE_BASELINES: dict[str, list[tuple[str, int]]] = {
         ("Procurement Officer", 3500),
         ("Process Improvement Engineer", 4000),
         ("Production Engineer", 3500),
-        ("Production Manager", 5500),
+        ("Production Manager", 6000),  # was 5500 — PayScale 2025 average RM 7,454 incl. senior
         ("Production Operator", 2000),
         ("Production Planner", 3500),
         ("Production Supervisor", 3200),

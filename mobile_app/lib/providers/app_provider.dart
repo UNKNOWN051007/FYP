@@ -47,6 +47,34 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── Salary → COL cross-module linkage ─────────────────────────
+  // Set when the salary screen wants to open the COL tab with a
+  // pre-filled amount. Consumed (one-shot) by ColScreen.build.
+  double? _colPrefill;
+  String? _colPrefillCity;
+
+  /// Jump to the Cost of Living tab with [gross] pre-filled (and
+  /// optionally the predicted [city] pre-selected).
+  void openColWithSalary(double gross, {String? city}) {
+    _colPrefill = gross;
+    _colPrefillCity = city;
+    _tabIndex = 3; // COL tab
+    notifyListeners();
+  }
+
+  /// One-shot getters — safe to call during build (no notify).
+  double? takeColPrefill() {
+    final v = _colPrefill;
+    _colPrefill = null;
+    return v;
+  }
+
+  String? takeColPrefillCity() {
+    final v = _colPrefillCity;
+    _colPrefillCity = null;
+    return v;
+  }
+
   Future<void> setTheme(int index) async {
     _themeIndex = index;
     notifyListeners();
@@ -196,15 +224,17 @@ class AppProvider extends ChangeNotifier {
           history: history,
           fileBytes: fileBytes,
           fileName: fileName,
+          language: _language,
         );
       } else if (_chatModule == ChatModule.contractAnalysis) {
-        botMsg = await ApiService.analyseContract(content);
+        botMsg = await ApiService.analyseContract(content, language: _language);
       } else {
         botMsg = await ApiService.sendChat(
           query: content,
           module: _chatModule,
           sessionId: _activeSessionId!,
           history: history,
+          language: _language,
         );
       }
       _messages = [..._messages, botMsg];

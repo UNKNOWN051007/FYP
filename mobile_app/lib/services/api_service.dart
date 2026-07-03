@@ -84,6 +84,7 @@ class ApiService {
     required ChatModule module,
     required String sessionId,
     List<Map<String, String>> history = const [],
+    String language = 'en',
   }) async {
     final res = await http.post(
       Uri.parse('$_base/chat'),
@@ -93,6 +94,7 @@ class ApiService {
         'module': module.apiValue,
         'session_id': sessionId,
         'history': history,
+        'language': language,
       }),
     );
     if (res.statusCode != 200) throw ApiException(res.statusCode, 'Chat failed');
@@ -108,6 +110,7 @@ class ApiService {
     List<Map<String, String>> history = const [],
     required Uint8List fileBytes,
     required String fileName,
+    String language = 'en',
   }) async {
     final uri = Uri.parse('$_base/chat/upload');
     final request = http.MultipartRequest('POST', uri)
@@ -115,6 +118,7 @@ class ApiService {
       ..fields['module'] = module.apiValue
       ..fields['session_id'] = sessionId
       ..fields['history'] = jsonEncode(history)
+      ..fields['language'] = language
       ..files.add(http.MultipartFile.fromBytes('file', fileBytes, filename: fileName));
 
     final streamed = await request.send().timeout(const Duration(seconds: 120));
@@ -124,11 +128,11 @@ class ApiService {
     return ChatMessage.fromApiResponse(data, DateTime.now().millisecondsSinceEpoch.toString());
   }
 
-  static Future<ChatMessage> analyseContract(String clause) async {
+  static Future<ChatMessage> analyseContract(String clause, {String language = 'en'}) async {
     final res = await http.post(
       Uri.parse('$_base/chat/contract'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'clause': clause}),
+      body: jsonEncode({'clause': clause, 'language': language}),
     );
     if (res.statusCode != 200) throw ApiException(res.statusCode, 'Contract analysis failed');
     final data = jsonDecode(res.body) as Map<String, dynamic>;

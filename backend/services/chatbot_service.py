@@ -8,6 +8,7 @@ Legal knowledge base: Employment Act 1955, Industrial Relations Act 1967.
 """
 
 import io
+import re
 import base64
 import json as _json
 import logging
@@ -63,6 +64,7 @@ class ChatRequest(BaseModel):
     module: str = Field(default="labour_rights",
                         pattern="^(labour_rights|negotiation_coach|contract_review)$")
     history: list[dict] = Field(default_factory=list)
+    language: str = Field(default="en", pattern="^(en|ms|zh|ta)$")
 
 
 class Source(BaseModel):
@@ -78,6 +80,7 @@ class ChatResponse(BaseModel):
 
 class ContractRequest(BaseModel):
     clause: str = Field(..., min_length=10, max_length=2000)
+    language: str = Field(default="en", pattern="^(en|ms|zh|ta)$")
 
 
 # ── System prompts ────────────────────────────────────────────
@@ -90,7 +93,7 @@ You know Malaysian employment law thoroughly:
 - Employment Act 1955 (EA 1955)
 - Industrial Relations Act 1967 (IRA 1967)
 - EPF Act 1991 / SOCSO Act 1969
-- Minimum Wages Order 2022 (RM 1,700 minimum)
+- Minimum Wages Order 2024 (RM 1,700 minimum)
 
 HOW TO ANSWER:
 1. State clearly what the law says and which section covers it.
@@ -101,9 +104,37 @@ HOW TO ANSWER:
    Step 3 – If unresolved, the case goes to the Industrial Court.
    (No lawyer needed for Labour Department complaints — it is free.)
 4. Cite sections like "Section 60A, EA 1955".
-5. Respond in the same language the user used (BM, EN, ZH, or TA).
+5. GROUNDING (CRITICAL): the "Context from legal documents" section contains the
+   authoritative figures. When it provides a specific number (annual-leave days,
+   sick-leave days, wage amounts, contribution rates, notice periods), you MUST
+   use that exact number — never substitute a figure from memory. If the context
+   does not cover the question, say so and name the Act that likely applies.
 
 You may add "for complex cases consider a lawyer" ONLY at the very end, never as the main answer."""
+
+# Preferred response language by user profile setting; the user's typed
+# language still wins if it clearly differs (e.g. BM profile, English question).
+_LANG_NAMES = {
+    "en": "English",
+    "ms": "Bahasa Melayu",
+    "zh": "Chinese (Simplified)",
+    "ta": "Tamil",
+}
+
+
+def _lang_instruction(language: str) -> str:
+    name = _LANG_NAMES.get(language, "English")
+    return (
+        f"\n\nLANGUAGE (MANDATORY): Write your ENTIRE answer in {name} only. "
+        f"Do not mix languages. Do not add translations in other languages."
+    )
+
+
+def _lang_suffix(language: str) -> str:
+    """Repeated at the end of the user message — weak local models follow
+    trailing directives far more reliably than system-prompt rules."""
+    name = _LANG_NAMES.get(language, "English")
+    return f"\n\n(Answer entirely in {name}.)"
 
 _NEGOTIATION_PROMPT = """You are a salary negotiation coach for Malaysian fresh graduates.
 Your role is to:
@@ -146,10 +177,56 @@ def _call_local_llm(system: str, user: str) -> str:
         return resp.json()["message"]["content"].strip()
 
 
-def _generate_answer(system: str, user: str) -> str:
+# Common BM function words for the en/ms language-detection heuristic.
+_BM_WORDS = frozenset({
+    "anda", "adalah", "berhak", "cuti", "tahunan", "berdasarkan", "seksyen",
+    "pekerja", "dengan", "untuk", "kepada", "boleh", "jika", "tidak", "dan",
+    "atau", "gaji", "majikan", "aduan", "perkhidmatan", "kamu", "sebanyak",
+    "hari", "tahun", "yang", "dalam", "ini", "itu", "akan", "kerja", "kerana",
+    "mengikut", "tersebut", "perlu", "membuat", "bawah", "selepas", "sahaja",
+})
+
+
+def _answer_matches_language(answer: str, language: str) -> bool:
+    """Cheap heuristic: does the answer appear to be in the requested language?"""
+    if language == "zh":
+        return any("一" <= ch <= "鿿" for ch in answer)
+    if language == "ta":
+        return any("஀" <= ch <= "௿" for ch in answer)
+    words = re.findall(r"[a-zA-Z]+", answer.lower())
+    if len(words) < 10:
+        return True  # too short to judge — accept
+    bm_ratio = sum(w in _BM_WORDS for w in words) / len(words)
+    if language == "ms":
+        return bm_ratio > 0.05
+    return bm_ratio < 0.05  # en
+
+
+def _force_language(answer: str, language: str) -> str:
+    """One-shot translation pass for when the primary LLM ignores the language
+    instruction (the local model has a strong BM bias). Returns the original
+    answer unchanged if translation fails."""
+    name = _LANG_NAMES.get(language, "English")
+    try:
+        return _call_local_llm(
+            "You are a precise translator.",
+            f"Translate the following answer entirely into {name}. Keep the "
+            f"structure, step numbering, amounts and legal citations exactly "
+            f"as they are. Output ONLY the translation.\n\n{answer}",
+        )
+    except Exception as exc:
+        logger.warning("Language-enforcement translation failed: %s", exc)
+        return answer
+
+
+def _generate_answer(system: str, user: str, language: str = "en") -> str:
     """Try local LLM first; fall back to Gemini if unavailable."""
     try:
-        return _call_local_llm(system, user)
+        answer = _call_local_llm(system, user)
+        if not _answer_matches_language(answer, language):
+            logger.info("Answer language mismatch (wanted %s) — translating", language)
+            answer = _force_language(answer, language)
+        return answer
     except Exception as exc:
         logger.warning("Local LLM unavailable (%s), falling back to Gemini", exc)
         try:
@@ -236,8 +313,11 @@ def _retrieve_context(query: str, n_results: int = 5) -> tuple[str, list[Source]
         return "", []
 
 
-def _build_prompt(module: str, query: str, history: list[dict], file_ctx: str) -> tuple[str, str, list[Source]]:
+def _build_prompt(module: str, query: str, history: list[dict], file_ctx: str,
+                  language: str = "en") -> tuple[str, str, list[Source]]:
     """Return (system_prompt, user_content, sources) for the given module."""
+    lang_note = _lang_instruction(language)
+    lang_suffix = _lang_suffix(language)
     file_section = f"\n\nAttached document content:\n{file_ctx}" if file_ctx else ""
 
     history_text = "\n".join(f"{m['role'].upper()}: {m['content']}" for m in history) if history else ""
@@ -249,18 +329,18 @@ def _build_prompt(module: str, query: str, history: list[dict], file_ctx: str) -
             f"Context from legal documents:\n{context or 'No specific context found.'}"
             f"{history_section}"
             f"{file_section}\n\n"
-            f"User question: {query}"
+            f"User question: {query}{lang_suffix}"
         )
-        return _SYSTEM_PROMPT, user, sources
+        return _SYSTEM_PROMPT + lang_note, user, sources
 
     elif module == "negotiation_coach":
         sources = []
         user = (
             f"Conversation so far:\n{history_text}"
             f"{file_section}\n\n"
-            f"User: {query}"
+            f"User: {query}{lang_suffix}"
         )
-        return _NEGOTIATION_PROMPT, user, sources
+        return _NEGOTIATION_PROMPT + lang_note, user, sources
 
     else:  # contract_review
         context, sources = _retrieve_context(query)
@@ -271,17 +351,18 @@ def _build_prompt(module: str, query: str, history: list[dict], file_ctx: str) -
             f"{file_section}\n\n"
             f"Contract clause: {query}\n\n"
             "Identify any potential violations of Malaysian employment law. "
-            "If compliant, confirm and explain why."
+            f"If compliant, confirm and explain why.{lang_suffix}"
         )
-        return _SYSTEM_PROMPT, user, sources
+        return _SYSTEM_PROMPT + lang_note, user, sources
 
 
 # ── Routes ────────────────────────────────────────────────────
 
 @router.post("", response_model=ChatResponse)
 async def chat(req: ChatRequest):
-    system, user, sources = _build_prompt(req.module, req.query, req.history, "")
-    answer = _generate_answer(system, user)
+    system, user, sources = _build_prompt(req.module, req.query, req.history, "",
+                                          language=req.language)
+    answer = _generate_answer(system, user, language=req.language)
     return ChatResponse(answer=answer, sources=sources, module=req.module)
 
 
@@ -291,6 +372,7 @@ async def chat_with_file(
     module: str = Form(default="labour_rights"),
     session_id: Optional[str] = Form(None),
     history: str = Form(default="[]"),
+    language: str = Form(default="en"),
     file: Optional[UploadFile] = FastAPIFile(None),
 ):
     """Chat endpoint that accepts an optional attached file (PDF, image, text, etc.)."""
@@ -303,8 +385,9 @@ async def chat_with_file(
     if file and file.filename:
         file_ctx = await _extract_file_text(file)
 
-    system, user, sources = _build_prompt(module, query, hist, file_ctx)
-    answer = _generate_answer(system, user)
+    system, user, sources = _build_prompt(module, query, hist, file_ctx,
+                                          language=language)
+    answer = _generate_answer(system, user, language=language)
     return ChatResponse(answer=answer, sources=sources, module=module)
 
 
@@ -314,5 +397,6 @@ async def analyse_contract(req: ContractRequest):
         ChatRequest(
             query=req.clause,
             module="contract_review",
+            language=req.language,
         )
     )

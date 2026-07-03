@@ -1,6 +1,12 @@
 """
 Train the salary prediction model and save to models/salary_model.pkl.
-Run once before starting the backend:  python train_model.py
+
+IMPORTANT: run this with the SAME Python environment the backend uses,
+otherwise the pickle is written by a different scikit-learn version and the
+backend will silently fall back to heuristic predictions
+(InconsistentVersionWarning at startup):
+
+    .venv\\Scripts\\python.exe train_model.py
 
 Data sources (in priority order):
   1. HuggingFace dataset azrai99/job-dataset (if reachable)

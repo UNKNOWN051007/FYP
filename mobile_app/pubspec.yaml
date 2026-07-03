@@ -24,9 +24,33 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  integration_test:
+    sdk: flutter
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.1
 
 flutter:
   uses-material-design: true
   assets:
     - assets/.env
+    - assets/icons/
+
+# Run:  dart run flutter_launcher_icons
+# Regenerates Android / iOS / Web launcher icons + favicon from the source PNGs.
+flutter_launcher_icons:
+  android: "ic_launcher"          # APK launcher icon
+  ios: true                       # iOS app icon
+  image_path: "assets/icons/app_icon.png"
+  min_sdk_android: 23
+  remove_alpha_ios: true          # App Store rejects iOS icons with alpha
+  adaptive_icon_background: "#FF921C"
+  adaptive_icon_foreground: "assets/icons/app_icon_foreground.png"
+  web:
+    generate: true                # also generates web/favicon + manifest icons
+    image_path: "assets/icons/app_icon.png"
+    background_color: "#FF921C"
+    theme_color: "#FF921C"
+  windows:
+    generate: true
+    image_path: "assets/icons/app_icon.png"
+    icon_size: 48

@@ -19,13 +19,17 @@ appear in any academic / FYP submission.
 **Used by:** [`backend/train_model.py`](../backend/train_model.py) (synthetic dataset
 generation) and [`backend/services/salary_service.py`](../backend/services/salary_service.py)
 (heuristic fallback when ML model can't encode an unseen title).
-**Status:** ⚠️ **Cross-validated at industry level** — each industry block has
-inline citations pointing to the primary survey it derives from. Individual
-line items have not been verified one-by-one against the source PDFs, but
-have been cross-checked against EasyUni 2026 fresh-grad ranges and
-PIKOM/Indeed per-role medians where available. Outliers found in
-Engineering (Mechanical/Civil/Electrical/Electronics) were corrected this
-session.
+**Status:** ✅ **All 11 industries cross-validated at industry level** — each
+industry block has inline citations pointing to the primary survey it
+derives from. Individual line items have not been verified one-by-one
+against the source PDFs, but have been cross-checked against EasyUni 2026
+fresh-grad ranges, JobStreet career pages, PIKOM 2024 IT averages, and
+Indeed per-role medians.
+
+Outliers corrected this session: 4 engineering baselines (Civil/Mechanical/
+Electrical/Electronics, each bumped to RM 3,500-3,600 to match the EasyUni
+2026 fresh-grad floor) plus Production Manager (5,500 → 6,000 to align
+with PayScale 2025 average).
 
 ### 1.1 Reference table
 
@@ -54,11 +58,11 @@ These reference IDs are cited inline at the top of each industry block in
 | Business/Finance | R3, R4, R6 | ✅ EasyUni Finance median RM 4,000 / range RM 3,000-4,800 — our baselines align | None |
 | Healthcare | R7, R8, R6 | ✅ Indeed medians: Nurse RM 2,249, Registered Nurse RM 2,674, Pharmacist RM 3,500-4,500, Medical Officer RM 7,856 — all within ±10% of ours | None |
 | Education | R5, R6 | ✅ EasyUni Education range RM 2,800-3,200 — our baselines align with public sector; private/intl schools higher | None |
-| Marketing/Sales | R2, R4, R5 | ⚠️ Verified at industry level only — per-role detail not cross-checked | None — TODO line-by-line |
-| Manufacturing | R2, R5 | ⚠️ Verified at industry level only | None — TODO line-by-line |
+| Marketing/Sales | R2, R4, R5 | ✅ JobStreet 2026 Marketing Executive RM 3,200-4,300 / Digital Marketing Exec RM 3,400-4,300 — our baselines align (Marketing Exec 3,500, Digital Marketing 3,800) | None |
+| Manufacturing | R2, R5, R7 | ✅ Indeed 2025: Production Supervisor RM 3,139 (ours: 3,200 ✅), Manufacturing Engineer RM 4,951 average across all experience (ours fresh-grad: 3,500 ✅), Production Manager RM 7,454 average | ✅ **Production Manager 5,500→6,000** |
 | Accounting | R3, R4, R5 | ✅ Michael Page 2025 confirms Tax Associate RM 60-100k annual (= RM 5-8k monthly mid-career); our fresh-grad baselines align | None |
 | Law | R6, R4, R5 | ✅ EasyUni Chambering RM 2,800 matches our Legal Assistant (2,800) and Court Clerk (2,500); Legal Associate is post-call (clarified in code) | None |
-| Architecture | R2, R5 | ⚠️ Verified at industry level only | None — TODO line-by-line |
+| Architecture | R2, R5, R7 | ✅ Graduate Architect (LAM Part II) RM 2,500-3,500 — our Junior Architect (3,000) sits mid-range; Interior Designer Indeed avg RM 3,761 — our baseline 3,500 ✅ | None |
 | Hospitality | R5, R6 | ✅ EasyUni Hospitality range RM 2,300-2,800 matches our front-line baselines (Front Desk 2,200, Receptionist 2,200, Server 1,800) | None |
 
 ### 1.3 What "cross-validated at industry level" means
@@ -244,16 +248,82 @@ changed.
 
 ## 5. Legal employment-law RAG corpus (chatbot)
 
-**File:** Documents loaded into ChromaDB by
-[`backend/init_chroma.py`](../backend/init_chroma.py).
-**Status:** Source documents need to be inventoried — see TODO below.
+**File:** [`backend/init_chroma.py`](../backend/init_chroma.py) — corpus is
+hard-coded in the script as 15 text snippets (not loaded from external
+PDFs). Indexed into ChromaDB at startup for the chatbot's RAG retrieval.
+**Status:** ✅ All 15 snippets cited to authoritative Acts at lom.agc.gov.my.
+One factual error corrected this session (minimum wage snippet).
 
-**Action:** add a `backend/data/legal_corpus/` folder containing the source
-PDFs, then list each one here with:
-- Publisher (e.g. Attorney General's Chambers Malaysia)
-- Document title (e.g. *Employment Act 1955* — consolidated text)
-- Version / amendment date
-- Source URL (e.g. https://lom.agc.gov.my)
+### 5.1 Authoritative legal sources
+
+| Ref | Publisher | Act / Order | Authoritative URL |
+|---|---|---|---|
+| L1 | Attorney General's Chambers Malaysia | **Employment Act 1955 (Act 265)** — as amended by Employment (Amendment) Act 2022, in force 1 Jan 2023 | https://lom.agc.gov.my/act-detail.php?act=265 |
+| L2 | Attorney General's Chambers Malaysia | **Industrial Relations Act 1967 (Act 177)** | https://lom.agc.gov.my/act-detail.php?act=177 |
+| L3 | Attorney General's Chambers Malaysia | **Employees Provident Fund Act 1991 (Act 452)** | https://lom.agc.gov.my/act-detail.php?act=452 |
+| L4 | Attorney General's Chambers Malaysia | **Employees' Social Security Act 1969 (Act 4)** (SOCSO Act) | https://lom.agc.gov.my/act-detail.php?act=4 |
+| L5 | Attorney General's Chambers Malaysia | **National Wages Consultative Council Act 2011 (Act 732)** | https://lom.agc.gov.my/act-detail.php?act=732 |
+| L6 | Federal Government (via AGC) | **Minimum Wages Order 2024 (PU(A) 376/2024)** — gazetted 4 Dec 2024 | Summary: https://www.skrine.com/insights/alerts/december-2024/minimum-wages-order-2024-gazetted · official PU(A): http://www.federalgazette.agc.gov.my |
+| L7 | EPF Malaysia (KWSP) | Current contribution rate tables | https://www.kwsp.gov.my/employer/contribution |
+| L8 | PERKESO (SOCSO) | Current contribution rate tables | https://www.perkeso.gov.my/index.php/en/social-security-protection/contribution-rate |
+
+### 5.2 Per-snippet citation inventory
+
+The 15 snippets currently seeded into ChromaDB:
+
+| Snippet ID | Subject | Cited to |
+|---|---|---|
+| `ea1955_s12` | EA 1955 s.12 — Termination notice (4/6/8 weeks) | L1 |
+| `ea1955_s37` | EA 1955 s.37 — Maternity leave (98 days, amended 2022) | L1 (post-amendment text) |
+| `ea1955_s60a` | EA 1955 s.60A — Hours of work (45 hrs/week, OT 1.5x) | L1 |
+| `ea1955_s60c` | EA 1955 s.60C — Rest days | L1 |
+| `ea1955_s60d` | EA 1955 s.60D — Public holidays (11 days, 4 compulsory) | L1 |
+| `ea1955_s60e` | EA 1955 s.60E — Annual leave (8/12/16 days by tenure) | L1 |
+| `ea1955_s60f` | EA 1955 s.60F — Sick leave (14/18/22 days + 60 hospitalisation) | L1 (post-amendment) |
+| `ea1955_probation` | Probation period (3–6 months common practice) | L1 — note this is **not statutory**; common-practice statement only |
+| `ira1967_s20` | IRA 1967 s.20 — Unfair dismissal (60-day window) | L2 |
+| `ira1967_s26` | IRA 1967 s.26 — Collective agreement | L2 |
+| `epf_contribution` | EPF rates (employee 11%, employer 13% ≤ RM 5k / 12% > RM 5k) | L3 + L7 |
+| `socso_contribution` | SOCSO rates (0.5% employee, 1.75% employer; EIS above RM 4k) | L4 + L8 |
+| `mwo_2024` | **Minimum wage RM 1,700** — MWO 2024, phased 1 Feb 2025 → 1 Aug 2025 | L5 + L6. **Corrected this session** — previous snippet wrongly cited MWO 2022 / Feb 2023 |
+| `negotiation_fresh_grad` | Salary negotiation tips for fresh graduates | n/a — practical guide, not statutory; cite WageWise authorship |
+| `offer_letter_checklist` | Employment contract / offer letter checklist | Derived from L1; cite WageWise authorship |
+
+### 5.3 Important fix made this session
+
+The minimum-wage snippet had three factual errors:
+1. **Wrong Order** — cited "Minimum Wages Order 2022" but RM 1,700 comes from MWO **2024** (PU(A) 376/2024).
+2. **Wrong effective date** — said "1 February 2023" but the actual effective dates are **1 February 2025** (MASCO professional employers) and **1 August 2025** (all other employers).
+3. **Missing nuance** — between Feb–Aug 2025, non-MASCO employers with < 5 employees were still legally allowed to pay RM 1,500 (the previous MWO 2022 rate). The corrected snippet now mentions this transition.
+
+The rest of the corpus checks out against the post-Amendment 2022 EA text and current EPF/SOCSO rates.
+
+### 5.4 Outstanding TODOs (optional, for a stricter FYP grade)
+
+1. **Add direct legal-text excerpts** alongside the summaries, so the
+   chatbot can show the user "this is what the Act actually says" not just
+   a paraphrase. Source from lom.agc.gov.my consolidated PDFs.
+2. **Add the Employment (Amendment) Act 2022** as a standalone snippet
+   explaining what changed on 1 Jan 2023 (sick leave entitlement increased,
+   maternity leave extended from 60 to 98 days, etc.) — would help the
+   chatbot answer "did the law change recently" questions.
+3. **Add a snippet about the EIS (Employment Insurance System) Act 2017**
+   — currently only mentioned in passing inside the SOCSO snippet.
+4. **Disclaimer snippet** — add an "this is general info, not legal advice"
+   snippet that the chatbot retrieves for sensitive questions (termination,
+   unfair dismissal, etc.).
+
+### 5.5 FYP report citation language
+
+> *The chatbot's retrieval-augmented generation (RAG) corpus consists of 15
+> hand-authored summary snippets covering key provisions of the Employment
+> Act 1955 (post Employment (Amendment) Act 2022), Industrial Relations Act
+> 1967, Employees Provident Fund Act 1991, Employees' Social Security Act
+> 1969, and the Minimum Wages Order 2024 (PU(A) 376/2024). Snippets are
+> paraphrased for retrieval performance and cite the authoritative Act
+> source at the Laws of Malaysia portal (lom.agc.gov.my). The chatbot is
+> designed for general information only and not legal advice. See
+> `docs/data_sources.md` §5 for the per-snippet citation table.*
 
 ---
 

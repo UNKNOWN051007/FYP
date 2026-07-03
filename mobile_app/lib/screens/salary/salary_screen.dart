@@ -5,6 +5,7 @@ import 'package:wagewise/app_localizations.dart';
 import '../../data/job_titles.dart';
 import '../../providers/app_provider.dart';
 import '../../models/salary_prediction.dart';
+import '../../models/col_evaluation.dart';
 import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
 
@@ -40,6 +41,11 @@ class _SalaryScreenState extends State<SalaryScreen> {
   bool _evaluatingOffer = false;
   String? _error;
   String? _offerError;
+  // COL cross-check: display-only — never feeds back into the prediction.
+  ColEvaluation? _colCheck;
+  bool _colChecking = false;
+  double? _colCheckAmount;
+  bool _colCheckIsOffer = false;
 
   Future<void> _predict() async {
     if (_industry == null || _education == null || _location == null) {
@@ -65,9 +71,32 @@ class _SalaryScreenState extends State<SalaryScreen> {
         setState(() => _error = provider.salaryError);
       } else {
         setState(() { _prediction = provider.latestPrediction; _showResults = true; });
+        // Kick off the COL sustainability check against the market rate.
+        final p50 = provider.latestPrediction?.predictedP50;
+        final loc = provider.latestPrediction?.location;
+        if (p50 != null && loc != null) _runColCheck(p50, loc, isOffer: false);
       }
     } finally {
       setState(() => _loading = false);
+    }
+  }
+
+  /// Runs the predicted/offered salary through the COL service for [city].
+  /// Display-only enrichment — failures are silent (card shows fallback).
+  Future<void> _runColCheck(double gross, String city, {required bool isOffer}) async {
+    setState(() { _colChecking = true; _colCheck = null; });
+    try {
+      final results = await ApiService.evaluateCOL(grossSalary: gross, cities: [city]);
+      if (!mounted) return;
+      setState(() {
+        _colCheck = results.isNotEmpty ? results.first : null;
+        _colCheckAmount = gross;
+        _colCheckIsOffer = isOffer;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _colCheck = null);
+    } finally {
+      if (mounted) setState(() => _colChecking = false);
     }
   }
 
@@ -83,6 +112,8 @@ class _SalaryScreenState extends State<SalaryScreen> {
         yearsExperience: p.yearsExperience, location: p.location, offer: offer,
       );
       setState(() => _offerResult = result);
+      // Re-run the COL check against the actual offer for negotiation context.
+      _runColCheck(offer, p.location, isOffer: true);
     } catch (e) {
       setState(() => _offerError = 'Evaluation failed. Check your connection and try again.');
     } finally {
@@ -93,7 +124,104 @@ class _SalaryScreenState extends State<SalaryScreen> {
   void _reset() => setState(() {
     _showResults = false; _prediction = null; _offerResult = null;
     _offerError = null; _offerCtrl.clear();
+    _colCheck = null; _colChecking = false;
+    _colCheckAmount = null; _colCheckIsOffer = false;
   });
+
+  /// Localized negotiation tip built client-side from the structured offer
+  /// response, so it follows the user's language preference.
+  String _localizedTip(AppLocalizations l, Map<String, dynamic> r) {
+    final status = r['status'] as String? ?? '';
+    final diff = (r['difference'] as num?)?.toDouble() ?? 0;
+    final median = (r['median'] as num?)?.toDouble() ?? 0;
+    switch (status) {
+      case 'below_market':
+        return l.tipBelowMarket(diff.abs().toStringAsFixed(0), median.toStringAsFixed(0));
+      case 'above_market':
+        return l.tipAboveMarket;
+      default:
+        return l.tipAtMarket;
+    }
+  }
+
+  /// Cost-of-Living cross-check card. Pure display of /col output for the
+  /// predicted city — never feeds back into the prediction itself.
+  Widget _buildColCheck(AppLocalizations l, WageColors c, SalaryPrediction p) {
+    final check = _colCheck;
+    final amountStr = _colCheckAmount?.toStringAsFixed(0) ?? '';
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionHeader(l.colCheckTitle),
+          if (_colCheckAmount != null)
+            Text(
+              _colCheckIsOffer
+                  ? l.colBasedOnOffer(amountStr, p.location)
+                  : l.colBasedOnMarket(amountStr, p.location),
+              style: TextStyle(color: c.muted, fontSize: 12),
+            ),
+          const SizedBox(height: 12),
+          if (_colChecking)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(12),
+                child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+              ),
+            )
+          else if (check != null) ...[
+            _ColCheckRow(l.colNetSalary, check.netSalary, c.green),
+            _ColCheckRow(l.colEstExpenses, check.totalExpenses, c.red),
+            Divider(color: c.border),
+            _ColCheckRow(
+              l.disposableIncome,
+              check.disposableIncome,
+              check.disposableIncome >= 0 ? c.green : c.red,
+              bold: true,
+            ),
+            const SizedBox(height: 10),
+            AppTag(
+              label: check.meetsLivingWage
+                  ? l.colMeetsLivingWage(p.location, check.livingWageBenchmark.toStringAsFixed(0))
+                  : l.colBelowLivingWage(p.location, check.livingWageBenchmark.toStringAsFixed(0)),
+              color: check.meetsLivingWage ? c.green : c.red,
+            ),
+            if (_colCheckIsOffer && !check.meetsLivingWage) ...[
+              const SizedBox(height: 8),
+              Text(
+                l.colNegotiationLeverage(p.location, p.predictedP50?.toStringAsFixed(0) ?? '-'),
+                style: TextStyle(color: c.amber, fontSize: 12, height: 1.5),
+              ),
+            ],
+          ] else
+            Text(
+              l.colCheckUnavailable,
+              style: TextStyle(color: c.dimmed, fontSize: 12),
+            ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  'Source: EPF Belanjawanku 2024/2025',
+                  style: TextStyle(color: c.dimmed, fontSize: 10),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _colCheckAmount == null
+                    ? null
+                    : () => context.read<AppProvider>().openColWithSalary(_colCheckAmount!, city: p.location),
+                icon: const Icon(Icons.open_in_new, size: 14),
+                label: Text(l.colFullAnalysis, style: const TextStyle(fontSize: 12)),
+                style: TextButton.styleFrom(foregroundColor: c.teal),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 
   /// Returns an error message if the title is obviously invalid, else null.
   /// Catches things like "bla", "asdf", "123", random punctuation, etc.
@@ -258,17 +386,17 @@ class _SalaryScreenState extends State<SalaryScreen> {
               if (_offerResult != null) ...[
                 const SizedBox(height: 12),
                 AppTag(label: statusLabel, color: statusColor),
-                if ((_offerResult!['negotiation_tip'] as String?) != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    _offerResult!['negotiation_tip'] as String,
-                    style: TextStyle(color: c.muted, fontSize: 13, height: 1.5),
-                  ),
-                ],
+                const SizedBox(height: 8),
+                Text(
+                  _localizedTip(l, _offerResult!),
+                  style: TextStyle(color: c.muted, fontSize: 13, height: 1.5),
+                ),
               ],
             ],
           ),
         ),
+        const SizedBox(height: 16),
+        _buildColCheck(l, c, p),
         const SizedBox(height: 24),
         OutlinedButton(
           onPressed: _reset,
@@ -282,6 +410,41 @@ class _SalaryScreenState extends State<SalaryScreen> {
         ),
         const SizedBox(height: 80),
       ],
+    );
+  }
+}
+
+class _ColCheckRow extends StatelessWidget {
+  final String label;
+  final double amount;
+  final Color color;
+  final bool bold;
+  const _ColCheckRow(this.label, this.amount, this.color, {this.bold = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.wc;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: bold ? c.text : c.muted,
+                fontSize: 13,
+                fontWeight: bold ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ),
+          Text(
+            'RM ${amount.toStringAsFixed(0)}',
+            style: TextStyle(color: color, fontSize: 13, fontWeight: bold ? FontWeight.w700 : FontWeight.normal),
+          ),
+        ],
+      ),
     );
   }
 }

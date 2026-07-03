@@ -39,6 +39,24 @@ class _ColScreenState extends State<ColScreen> {
     final l = AppLocalizations.of(context)!;
     final c = context.wc;
     final provider = context.watch<AppProvider>();
+
+    // Consume a salary handed over from the Salary screen ("Full analysis"
+    // link). One-shot: prefill the field, select the predicted city, and
+    // auto-run the evaluation after this frame.
+    final prefillSalary = provider.takeColPrefill();
+    if (prefillSalary != null) {
+      _salaryCtrl.text = prefillSalary.toStringAsFixed(0);
+      final prefillCity = provider.takeColPrefillCity();
+      if (prefillCity != null && _allCities.contains(prefillCity)) {
+        _selectedCities
+          ..clear()
+          ..add(prefillCity);
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _evaluate();
+      });
+    }
+
     return Scaffold(
       backgroundColor: c.bg,
       appBar: AppBar(title: Text(l.colHeading)),

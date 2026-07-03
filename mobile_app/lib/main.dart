@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -20,6 +21,16 @@ final _navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Supabase.initialize() recovers a persisted session in an internal
+  // background future. If the refresh token has expired, that future throws
+  // an AuthApiException that is otherwise UNHANDLED and can crash the app.
+  // Log-and-continue; the auth stream listener handles the actual sign-out.
+  PlatformDispatcher.instance.onError = (error, stack) {
+    debugPrint('Unhandled async error: $error');
+    return true;
+  };
+
   await dotenv.load(fileName: 'assets/.env');
 
   await Supabase.initialize(
@@ -85,6 +96,15 @@ class _WageWiseAppState extends State<WageWiseApp> {
           }
         }
       }
+    }, onError: (Object err, StackTrace st) {
+      // Session refresh can fail asynchronously (expired/revoked refresh
+      // token, no network). Without this handler the error is unhandled —
+      // treat it as a sign-out and land the user on the login screen.
+      debugPrint('Auth stream error: $err');
+      AuthService.isRecovering = false;
+      _navigatorKey.currentContext?.read<AppProvider>().clearUser();
+      _navigatorKey.currentState
+          ?.pushNamedAndRemoveUntil('/login', (_) => false);
     });
   }
 

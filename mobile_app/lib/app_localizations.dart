@@ -117,6 +117,21 @@ class AppLocalizations {
       'comfortable': 'Comfortable',
       'tight': 'Tight',
       'deficit': 'Deficit',
+      'colCheckTitle': 'Cost of Living Check',
+      'colBasedOnOffer': 'Based on your offer of RM {amount} in {city}',
+      'colBasedOnMarket': 'Based on the market rate of RM {amount} in {city}',
+      'colNetSalary': 'Net salary (after EPF/SOCSO/tax)',
+      'colEstExpenses': 'Est. monthly expenses',
+      'colMeetsLivingWage': 'Meets {city} living wage (RM {amount})',
+      'colBelowLivingWage': 'Below {city} living wage (RM {amount})',
+      'colNegotiationLeverage':
+          'Negotiation leverage: this offer\'s net pay falls below the living-wage benchmark for {city} (EPF Belanjawanku 2024/25). Consider negotiating toward the market rate of RM {rate}.',
+      'colFullAnalysis': 'Full analysis',
+      'colCheckUnavailable': 'Cost-of-living check unavailable. Check your connection.',
+      'tipBelowMarket':
+          'Your offer is RM {diff} below the market median. You have room to negotiate up to RM {median}. Reference market data from WageWise when countering.',
+      'tipAboveMarket': 'Your offer is above market rate. Consider accepting or negotiating other benefits.',
+      'tipAtMarket': 'Your offer aligns with market rate. You may still negotiate benefits or scope.',
     },
     'ms': {
       'appName': 'WageWise',
@@ -205,6 +220,21 @@ class AppLocalizations {
       'comfortable': 'Selesa',
       'tight': 'Ketat',
       'deficit': 'Defisit',
+      'colCheckTitle': 'Semakan Kos Sara Hidup',
+      'colBasedOnOffer': 'Berdasarkan tawaran anda RM {amount} di {city}',
+      'colBasedOnMarket': 'Berdasarkan kadar pasaran RM {amount} di {city}',
+      'colNetSalary': 'Gaji bersih (selepas KWSP/PERKESO/cukai)',
+      'colEstExpenses': 'Anggaran perbelanjaan bulanan',
+      'colMeetsLivingWage': 'Mencapai gaji sara hidup {city} (RM {amount})',
+      'colBelowLivingWage': 'Bawah gaji sara hidup {city} (RM {amount})',
+      'colNegotiationLeverage':
+          'Kelebihan rundingan: gaji bersih tawaran ini di bawah penanda aras gaji sara hidup {city} (EPF Belanjawanku 2024/25). Pertimbangkan untuk berunding ke arah kadar pasaran RM {rate}.',
+      'colFullAnalysis': 'Analisis penuh',
+      'colCheckUnavailable': 'Semakan kos sara hidup tidak tersedia. Semak sambungan anda.',
+      'tipBelowMarket':
+          'Tawaran anda RM {diff} di bawah median pasaran. Anda boleh berunding sehingga RM {median}. Rujuk data pasaran WageWise semasa berunding.',
+      'tipAboveMarket': 'Tawaran anda melebihi kadar pasaran. Pertimbangkan untuk menerima atau berunding manfaat lain.',
+      'tipAtMarket': 'Tawaran anda selari dengan kadar pasaran. Anda masih boleh berunding manfaat atau skop kerja.',
     },
     'zh': {
       'appName': 'WageWise',
@@ -290,6 +320,21 @@ class AppLocalizations {
       'comfortable': '舒适',
       'tight': '紧张',
       'deficit': '赤字',
+      'colCheckTitle': '生活成本检查',
+      'colBasedOnOffer': '基于您在{city}的报价 RM {amount}',
+      'colBasedOnMarket': '基于{city}的市场薪资 RM {amount}',
+      'colNetSalary': '净工资（扣除EPF/SOCSO/税后）',
+      'colEstExpenses': '预计每月开支',
+      'colMeetsLivingWage': '达到{city}生活工资（RM {amount}）',
+      'colBelowLivingWage': '低于{city}生活工资（RM {amount}）',
+      'colNegotiationLeverage':
+          '谈判筹码：此报价的净收入低于{city}的生活工资基准（EPF Belanjawanku 2024/25）。建议向市场薪资 RM {rate} 争取。',
+      'colFullAnalysis': '完整分析',
+      'colCheckUnavailable': '无法获取生活成本数据，请检查网络连接。',
+      'tipBelowMarket':
+          '您的报价比市场中位数低 RM {diff}。您有空间协商至 RM {median}。协商时可引用 WageWise 的市场数据。',
+      'tipAboveMarket': '您的报价高于市场水平。可考虑接受或协商其他福利。',
+      'tipAtMarket': '您的报价符合市场水平。您仍可协商福利或工作范围。',
     },
     'ta': {
       'appName': 'WageWise',
@@ -378,6 +423,21 @@ class AppLocalizations {
       'comfortable': 'வசதியான',
       'tight': 'இறுக்கமான',
       'deficit': 'பற்றாக்குறை',
+      'colCheckTitle': 'வாழ்க்கைச் செலவு சரிபார்ப்பு',
+      'colBasedOnOffer': '{city} இல் உங்கள் சம்பள வாய்ப்பு RM {amount} அடிப்படையில்',
+      'colBasedOnMarket': '{city} இல் சந்தை விகிதம் RM {amount} அடிப்படையில்',
+      'colNetSalary': 'நிகர சம்பளம் (EPF/SOCSO/வரிக்குப் பின்)',
+      'colEstExpenses': 'மாதாந்திர செலவு மதிப்பீடு',
+      'colMeetsLivingWage': '{city} வாழ்க்கை ஊதியத்தை எட்டுகிறது (RM {amount})',
+      'colBelowLivingWage': '{city} வாழ்க்கை ஊதியத்திற்குக் கீழ் (RM {amount})',
+      'colNegotiationLeverage':
+          'பேச்சுவார்த்தை பலம்: இந்த சம்பள வாய்ப்பின் நிகர ஊதியம் {city} வாழ்க்கை ஊதிய அளவுகோலுக்குக் கீழ் உள்ளது (EPF Belanjawanku 2024/25). சந்தை விகிதமான RM {rate} நோக்கி பேச்சுவார்த்தை நடத்தவும்.',
+      'colFullAnalysis': 'முழு பகுப்பாய்வு',
+      'colCheckUnavailable': 'வாழ்க்கைச் செலவு சரிபார்ப்பு கிடைக்கவில்லை. இணைப்பைச் சரிபார்க்கவும்.',
+      'tipBelowMarket':
+          'உங்கள் சம்பள வாய்ப்பு சந்தை இடைநிலையை விட RM {diff} குறைவு. RM {median} வரை பேச்சுவார்த்தை நடத்தலாம். WageWise சந்தை தரவை மேற்கோள் காட்டவும்.',
+      'tipAboveMarket': 'உங்கள் சம்பளம் சந்தை விகிதத்தை விட அதிகம். ஏற்கவோ பிற நன்மைகளைப் பேசவோ பரிசீலிக்கவும்.',
+      'tipAtMarket': 'உங்கள் சம்பளம் சந்தை விகிதத்துடன் ஒத்துள்ளது. நன்மைகள் அல்லது பணி எல்லையை இன்னும் பேசலாம்.',
     },
   };
 
@@ -439,6 +499,27 @@ class AppLocalizations {
   String get evaluate => _s('evaluate');
   String get belowMarket => _s('belowMarket');
   String get atMarket => _s('atMarket');
+  String get colCheckTitle => _s('colCheckTitle');
+  String get colNetSalary => _s('colNetSalary');
+  String get colEstExpenses => _s('colEstExpenses');
+  String get colFullAnalysis => _s('colFullAnalysis');
+  String get colCheckUnavailable => _s('colCheckUnavailable');
+  String get tipAboveMarket => _s('tipAboveMarket');
+  String get tipAtMarket => _s('tipAtMarket');
+
+  // Templated strings — callers substitute the placeholders.
+  String colBasedOnOffer(String amount, String city) =>
+      _s('colBasedOnOffer').replaceAll('{amount}', amount).replaceAll('{city}', city);
+  String colBasedOnMarket(String amount, String city) =>
+      _s('colBasedOnMarket').replaceAll('{amount}', amount).replaceAll('{city}', city);
+  String colMeetsLivingWage(String city, String amount) =>
+      _s('colMeetsLivingWage').replaceAll('{city}', city).replaceAll('{amount}', amount);
+  String colBelowLivingWage(String city, String amount) =>
+      _s('colBelowLivingWage').replaceAll('{city}', city).replaceAll('{amount}', amount);
+  String colNegotiationLeverage(String city, String rate) =>
+      _s('colNegotiationLeverage').replaceAll('{city}', city).replaceAll('{rate}', rate);
+  String tipBelowMarket(String diff, String median) =>
+      _s('tipBelowMarket').replaceAll('{diff}', diff).replaceAll('{median}', median);
   String get aboveMarket => _s('aboveMarket');
   String get newPrediction => _s('newPrediction');
   String get chatbotHeading => _s('chatbotHeading');
